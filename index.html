@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>红纸鸢 · 纸扎冥婚</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <div class="stat-bar">
+      <div class="stat"><span class="lbl">理智</span><div class="bar"><div class="fill san" id="bar-san" style="width:100%"></div></div><span class="val" id="val-san">10</span></div>
+      <div class="stat"><span class="lbl">阴气</span><div class="bar"><div class="fill yin" id="bar-yin" style="width:0%"></div></div><span class="val" id="val-yin">0</span></div>
+      <div class="hour-display"><span class="hour-name" id="hour-name"></span><span class="candle-icon" id="candle-icon"></span></div>
+    </div>
+    <div>
+      <button class="tbtn" id="btn-save">存档</button>
+      <button class="tbtn" id="btn-load">读档</button>
+      <button class="tbtn" id="btn-menu">主菜单</button>
+    </div>
+  </div>
+
+  <!-- 主舞台 -->
+  <div class="stage" id="stage">
+    <div class="scene-title" id="scene-title"></div>
+    <div class="narration" id="narration"></div>
+    <div id="tip-area"></div>
+    <div class="choices" id="choices"></div>
+  </div>
+
+  <!-- 道具栏 -->
+  <div class="inventory" id="inventory">
+    <span class="inv-title">行囊</span>
+    <span style="color:rgba(80,40,20,.5);font-size:13px;letter-spacing:1px;">空空如也</span>
+  </div>
+
+  <!-- 开始页 -->
+  <div class="menu-screen" id="menu-screen">
+    <div class="menu-title">红纸鸢</div>
+    <div class="menu-sub">纸 扎 冥 婚</div>
+    <div class="menu-desc">
+      民国二十三年,浙东槐阴村。<br>
+      一场办了九十年的喜事,今夜将续上最后一程。<br><br>
+      <span style="color:rgba(160,24,24,.7)">—— 你被请来做新郎。</span>
+    </div>
+    <button class="menu-btn primary" id="btn-start">入 宅</button>
+    <button class="menu-btn" id="btn-continue">续 前 缘</button>
+    <button class="menu-btn" id="btn-pov">视 角</button>
+    <button class="menu-btn" id="btn-gallery">阅 录</button>
+    <button class="menu-btn" id="btn-ach">成 就</button>
+    <button class="menu-btn" id="btn-sound">音效：开</button>
+    <div class="menu-author">试 界 · TryWorld</div>
+  </div>
+
+  <!-- 视角选择页 -->
+  <div class="pov-screen hidden" id="pov-screen">
+    <div class="pov-title">择 一 双 眼 睛</div>
+    <div class="pov-cards" id="pov-cards"></div>
+    <button class="gallery-close" id="pov-close" style="margin-top:40px;">返 回</button>
+  </div>
+
+  <!-- 结局页 -->
+  <div class="ending-screen hidden" id="ending-screen">
+    <div class="ending-tag" id="ending-tag"></div>
+    <div class="ending-name" id="ending-name"></div>
+    <div class="ending-text" id="ending-text"></div>
+    <div class="ending-stat" id="ending-stat"></div>
+    <div class="ending-unlock" id="ending-unlock"></div>
+    <button class="ending-btn" id="ending-restart">重 入 槐 阴</button>
+    <button class="ending-btn" id="ending-gallery">查 阅 结 局 录</button>
+    <div class="ending-author">—— 试 界 · TryWorld ——</div>
+  </div>
+
+  <!-- 结局图鉴 -->
+  <div class="gallery-screen hidden" id="gallery-screen">
+    <div class="gallery-title">结 局 录</div>
+    <div class="gallery-count" id="gallery-count"></div>
+    <div class="gallery-grid" id="gallery-grid"></div>
+    <button class="gallery-close" id="gallery-close">关 闭</button>
+  </div>
+
+  <!-- 成就页 -->
+  <div class="ach-screen hidden" id="ach-screen">
+    <div class="ach-title">成 就</div>
+    <div class="ach-count" id="ach-count"></div>
+    <div class="ach-grid" id="ach-grid"></div>
+    <button class="gallery-close" id="ach-close">关 闭</button>
+  </div>
+
+</div>
+
+<!-- 脚本加载（按依赖顺序） -->
+<script src="js/items.js"></script>
+<script src="js/sound.js"></script>
+<script src="data/events.js"></script>
+<script src="js/systems.js"></script>
+<script src="js/core.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/scenes_ayuan.js"></script>
+<script src="js/scenes_po.js"></script>
+
+<script>
+/* ============ 事件绑定与初始化 ============ */
+
+// 合并视角结局到主结局表
+Object.assign(ENDINGS, AYUAN_ENDINGS||{}, PO_ENDINGS||{});
+
+// 主菜单按钮
+el('btn-start').onclick=()=>startGame('newcomer');
+el('btn-continue').onclick=continueGame;
+el('btn-pov').onclick=()=>{ Sound.click(); showPovSelect(); };
+el('btn-gallery').onclick=()=>{ Sound.click(); showGallery(); };
+el('btn-ach').onclick=()=>{ Sound.click(); showAchievements(); };
+el('btn-sound').onclick=function(){
+  const v=!Sound.isEnabled(); Sound.setEnabled(v);
+  this.textContent='音效：'+(v?'开':'关');
+  if(v) Sound.click();
+};
+
+// 顶栏按钮
+el('btn-save').onclick=()=>{ if(saveGame()){ flashTip('已存档。',false); showTips(null);} else { flashTip('尚无可存档的进度。',false); showTips(null);} };
+el('btn-load').onclick=()=>{ if(loadGame()){ renderScene(); flashTip('已读取存档。',false); showTips(null);} else { flashTip('无存档。',false); showTips(null);} };
+el('btn-menu').onclick=()=>{ if(confirm('返回主菜单?当前进度将自动保存。')){ saveGame(); showMenu(); } };
+
+// 视角页关闭
+el('pov-close').onclick=()=>{ el('pov-screen').classList.add('hidden'); el('menu-screen').classList.remove('hidden'); Sound.click(); };
+
+// 图鉴/成就关闭
+el('gallery-close').onclick=()=>{ el('gallery-screen').classList.add('hidden'); Sound.click(); };
+el('ach-close').onclick=()=>{ el('ach-screen').classList.add('hidden'); Sound.click(); };
+
+// 结局页按钮
+el('ending-restart').onclick=()=>{ el('ending-screen').classList.add('hidden'); showMenu(); };
+el('ending-gallery').onclick=()=>{ showGallery(); };
+
+// 首次交互后激活音频（含背景音乐）
+let bgmStarted=false;
+function tryStartBgm(){
+  if(bgmStarted) return;
+  bgmStarted=true;
+  try{ const c=window.AudioContext? (window._ac||(window._ac=new AudioContext())):null; if(c&&c.state==='suspended') c.resume(); }catch(e){}
+  if(Sound.isEnabled()) Sound.startBgm();
+}
+document.body.addEventListener('click',tryStartBgm,{once:true});
+document.body.addEventListener('keydown',tryStartBgm,{once:true});
+
+// 纸鸢飘落氛围粒子
+function spawnKiteParticle(){
+  if(document.body.classList.contains('san-critical') || document.body.classList.contains('san-low')){
+    const k=document.createElement('div');
+    k.className='kite-particle';
+    k.textContent='🪁';
+    k.style.left=Math.random()*100+'vw';
+    k.style.animationDuration=(8+Math.random()*8)+'s';
+    document.body.appendChild(k);
+    setTimeout(()=>k.remove(),16000);
+  }
+}
+setInterval(spawnKiteParticle, 6000);
+
+// 启动
+showMenu();
+</script>
+</body>
+</html>
