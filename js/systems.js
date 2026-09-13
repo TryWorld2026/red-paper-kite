@@ -37,49 +37,56 @@ function checkHourEvent(sceneId){
 }
 
 /* ============ 随机事件系统 ============ */
-function rollRandomEvents(){
-  const pool=Object.keys(RANDOM_EVENTS);
-  const count=3+Math.floor(Math.random()*3); // 3-5个
-  G.randomEvents=[];
-  const shuffled=pool.sort(()=>Math.random()-0.5);
-  for(let i=0;i<Math.min(count,shuffled.length);i++){
-    G.randomEvents.push(shuffled[i]);
+function shuffle(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
   }
+  return a;
+}
+
+/* 同局互斥:两条矛盾的灯笼事件不能一起出现 */
+const EVENT_CONFLICTS=[['candle_out','candle_steady']];
+
+function rollRandomEvents(){
+  const itemIds=Object.keys(RANDOM_EVENTS).filter(id=>RANDOM_EVENTS[id].item);
+  const flavorIds=Object.keys(RANDOM_EVENTS).filter(id=>!RANDOM_EVENTS[id].item);
+  const picked=itemIds.slice();              // 发道具的事件必入池,成就才不靠运气
+  const flavorTarget=1+Math.floor(Math.random()*2);
+  for(const id of shuffle(flavorIds)){
+    if(picked.length>=itemIds.length+flavorTarget) break;
+    const pair=EVENT_CONFLICTS.find(g=>g.includes(id));
+    if(pair && picked.some(x=>pair.includes(x) && x!==id)) continue;
+    picked.push(id);
+  }
+  G.randomEvents=shuffle(picked);
 }
 
 function checkRandomEvent(sceneId){
   if(!G.randomEvents || G.randomEvents.length===0) return;
-  for(const eid of G.randomEvents){
+  const due=G.randomEvents.filter(eid=>{
     const ev=RANDOM_EVENTS[eid];
-    if(!ev) continue;
-    if(ev.trigger===sceneId && !hasFlag('ev_'+eid)){
-      setFlag('ev_'+eid);
-      // 延迟触发,在场景渲染后追加提示（不清除现有提示）
-      setTimeout(()=>{
-        pendingTips.push({text:ev.text, gain:ev.gain, warn:ev.warn});
-        if(ev.sound) Sound[ev.sound]();
-        if(ev.san) adjustSan(ev.san);
-        if(ev.yin) adjustYin(ev.yin);
-        if(ev.item){
-          giveItem(ev.item);
-          // 纸鸢收集成就检查
-          if(ev.item==='kite') checkAchievements();
-        }
-        // 追加到现有提示区域
-        const t=el('tip-area');
-        if(t){
-          pendingTips.forEach(tp=>{
-            const d=document.createElement('div');
-            d.className='tip-line'+(tp.gain?' gain':'')+(tp.warn?' warn':'');
-            d.innerHTML=tp.text;
-            t.appendChild(d);
-          });
-          pendingTips=[];
-        }
-      }, 1500);
-      break;
-    }
-  }
+    return ev && ev.trigger===sceneId && !hasFlag('ev_'+eid);
+  });
+  due.forEach((eid,n)=>{
+    setFlag('ev_'+eid);
+    // 延迟触发,在场景渲染后追加提示（不清除现有提示）
+    setTimeout(()=>{
+      const ev=RANDOM_EVENTS[eid];
+      pendingTips.push({text:ev.text, gain:ev.gain, warn:ev.warn});
+      if(ev.sound) Sound[ev.sound]();
+      if(ev.san) adjustSan(ev.san);
+      if(ev.yin) adjustYin(ev.yin);
+      if(ev.item){
+        giveItem(ev.item);
+        if(ev.item==='kite') checkAchievements();
+      }
+      pendingTips.forEach(appendTip);
+      pendingTips=[];
+      checkAchievements();
+    }, 1500+n*1200);
+  });
 }
 
 /* ============ 成就系统 ============ */
@@ -110,11 +117,9 @@ const ACHIEVEMENTS={
   po_pov:{name:'喜婆之眼',desc:'以喜婆视角完成游戏。',hint:'你以为的恶人,也有她的故事。'}
 };
 
-let illusionClickCount=0;
-
 function checkAchievements(){
   // 幻象点击计数
-  if(G.achievements.includes('illusion_5')===false && illusionClickCount>=5){
+  if((G.illusionClicks||0)>=5 && !hasAchievement('illusion_5')){
     unlockAchievement('illusion_5');
   }
   // 全道具（纸鸢只需1个即可计入）
@@ -150,18 +155,15 @@ function checkEndingAchievements(endId){
   if(newcomerUnlocked.length>=newcomerEndings.length && !hasAchievement('all_endings')){
     unlockAchievement('all_endings');
   }
-  // 不违反规则通关
-  if(!hasFlag('woreCord') && !hasFlag('turned') && !hasFlag('peekedBride') && !hasFlag('calledName')){
-    if(!hasAchievement('no_rule_broken')) unlockAchievement('no_rule_broken');
-  }
-  // 违反全部规则仍活到结局
-  if(hasFlag('woreCord') && hasFlag('turned') && hasFlag('peekedBride') && hasFlag('calledName')){
-    if(!hasAchievement('broke_all_rules')) unlockAchievement('broke_all_rules');
-  }
   // 各结局专属
   if(endId==='save' && !hasAchievement('save_ayuan')) unlockAchievement('save_ayuan');
   if(endId==='truth' && !hasAchievement('truth_ending')) unlockAchievement('truth_ending');
-  if(endId==='truth' && !hasAchievement('ayuan_pov')) {} // 视角解锁另处理
+  // 规则类:四条 flag 只在新郎视角设置,且需活过此局
+  if(G.pov==='newcomer' && ENDINGS[endId] && ENDINGS[endId].type!=='death'){
+    const broke=[hasFlag('woreCord'),hasFlag('peekedBride'),hasFlag('drankWine'),hasFlag('turned')];
+    if(broke.every(v=>!v) && !hasAchievement('no_rule_broken')) unlockAchievement('no_rule_broken');
+    if(broke.every(v=>v) && !hasAchievement('broke_all_rules')) unlockAchievement('broke_all_rules');
+  }
   // New Game+
   if(G.carriedMemory && !hasAchievement('ng_plus')) unlockAchievement('ng_plus');
   // 视角通关
@@ -171,8 +173,6 @@ function checkEndingAchievements(endId){
 
 /* 幻象选项点击计数 */
 function onIllusionClick(){
-  illusionClickCount++;
-  if(illusionClickCount>=5 && !hasAchievement('illusion_5')){
-    unlockAchievement('illusion_5');
-  }
+  G.illusionClicks=(G.illusionClicks||0)+1;
+  checkAchievements();
 }

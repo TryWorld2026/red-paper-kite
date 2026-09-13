@@ -35,6 +35,7 @@ function freshState(pov){
     randomEvents:[],   // 本局抽到的随机事件id
     exploredRooms:[],  // 已探索房间
     achievements:[],   // 本局获得的成就
+    illusionClicks:0,  // 本局点击幻象次数（需随存档持久化）
     carriedMemory:false, // 是否携带记忆(New Game+)
     typewriter:false
   };
@@ -249,20 +250,17 @@ function renderChoices(choices){
 }
 
 /* ============ 提示渲染 ============ */
+function appendTip(tp){
+  const t=el('tip-area'); if(!t) return;
+  const d=document.createElement('div');
+  d.className='tip-line'+(tp.gain?' gain':'')+(tp.warn?' warn':'');
+  d.innerHTML=tp.text;
+  t.appendChild(d);
+}
 function showTips(tips){
-  const t=el('tip-area'); t.innerHTML='';
-  (tips||[]).forEach(tp=>{
-    const d=document.createElement('div');
-    d.className='tip-line'+(tp.gain?' gain':'')+(tp.warn?' warn':'');
-    d.innerHTML=tp.text;
-    t.appendChild(d);
-  });
-  pendingTips.forEach(tp=>{
-    const d=document.createElement('div');
-    d.className='tip-line'+(tp.gain?' gain':'')+(tp.warn?' warn':'');
-    d.innerHTML=tp.text;
-    t.appendChild(d);
-  });
+  el('tip-area').innerHTML='';
+  (tips||[]).forEach(appendTip);
+  pendingTips.forEach(appendTip);
   pendingTips=[];
 }
 function flashTip(text,gain){ pendingTips.push({text,gain:!!gain}); }
@@ -306,10 +304,9 @@ function getExploreScene(){
   return hasFlag('ziShiDone') ? 'explore2' : 'explore';
 }
 
-/* 安全推进时辰（explore2 阶段不再推进） */
-function safeAdvanceHour(){
-  if(hasFlag('ziShiDone')) return; // 子时已过,不再推进
-  advanceHour();
+/* 将时辰单调推进到至少第 h 格,避免任何时间回拨 */
+function advanceToHour(h){
+  while(G.hour<h) advanceHour();
 }
 
 /* ============ 结局判定 ============ */
@@ -383,9 +380,10 @@ function getCurrentScenes(){
 
 function markExploreDone(){
   const s=G.scene;
-  if(s==='study'||s==='study2') setFlag('doneStudy',true);
-  if(s==='bridal'||s==='peekBride'||s==='mirror'||s==='bridal2') setFlag('doneBridal',true);
-  if(s==='shrine'||s==='shrine2'||s==='callName') setFlag('doneShrine',true);
+  // 只有关键证据到手才算"探明",否则进屋就走会把真相线永久锁死
+  if(s==='study2') setFlag('doneStudy',true);
+  if(s==='mirror') setFlag('doneBridal',true);
+  if(s==='shrine2') setFlag('doneShrine',true);
 }
 
 /* ============ 屏幕/流程控制 ============ */

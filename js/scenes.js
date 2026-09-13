@@ -164,7 +164,7 @@ cordResult:{
 explore:{
   title:'陈家老宅 · 中庭',
   run(){
-    if(G.hour<1) G.hour=1;
+    advanceToHour(1);
     return {
       text:`夜风穿堂。中庭立着一棵枯死的<span class="em">老槐</span>,枝头挂满红纸剪的鸢鸟,随风轻颤。<br><br>
         四下里,东厢、西厢、后院祠堂,皆可去得。<br><br>
@@ -185,8 +185,8 @@ study:{
         书架后,半张泛黄的纸飘落。`,
       tips:[{gain:true,text:'【线索·真相】族谱记载:陈家三郎死后,选中绣娘"阿鸢"行冥婚。疑为活人陪葬!'}],
       choices:[
-        {text:'捡起婚书残页', action:()=>{ giveItem('fragment1'); addTruth('ahuang'); goTo('study2'); }},
-        {text:'在书架后仔细翻找', action:()=>{ setFlag('searchedStudy'); goTo('study2'); }}
+        {text:'捡起半张飘落的婚书残页', disabled:hasItem('fragment1'), action:()=>{ giveItem('fragment1'); addTruth('ahuang'); goTo('study'); }},
+        {text:'到书架后仔细翻找', action:()=>{ setFlag('searchedStudy'); goTo('study2'); }}
       ]
     };
   }
@@ -203,7 +203,7 @@ study2:{
         {text:'【线索·真相】假禁忌册是族长伪造,目的是让新郎自寻死路!'}
       ],
       choices:[
-        {text:'记下,返回中庭', action:()=>{ giveItem('peach'); addTruth('fakeBook'); checkAchievements(); safeAdvanceHour(); goTo(getExploreScene()); }}
+        {text:'记下,返回中庭', action:()=>{ giveItem('peach'); addTruth('fakeBook'); checkAchievements(); goTo(getExploreScene()); }}
       ]
     };
   }
@@ -220,9 +220,10 @@ bridal:{
         空气里浮动着陈年檀香,与一丝若有若无的<span class="em">腐气</span>。<br><br>
         轿中传来极轻的、纸摩擦的声响。`,
       choices:[
-        {text:'【规则三】掀开轿帘看新娘(禁忌:新郎不可亲手揭)', log:'揭新娘', action:()=>{ setFlag('peekedBride'); adjustYin(2); adjustSan(-1); Sound.paper(); goTo('peekBride'); }},
-        {text:'【规则三】不亲手揭,转而查看镜台', go:'mirror'},
-        {text:'拿走桌上的合卺酒与绣鞋', action:()=>{ setFlag('tookWine'); giveItem('coins'); goTo('bridal2'); }}
+        {text:'【规则三】掀开轿帘看新娘(禁忌:新郎不可亲手揭)', log:'揭新娘', disabled:hasFlag('peekedBride'), action:()=>{ setFlag('peekedBride'); adjustYin(2); adjustSan(-1); Sound.paper(); goTo('peekBride'); }},
+        {text:'拿走桌上的合卺酒与绣鞋', disabled:hasFlag('tookWine'), action:()=>{ setFlag('tookWine'); giveItem('coins'); goTo('bridal2'); }},
+        {text:'查看镜台', go:'mirror'},
+        {text:'返回中庭', action:()=>{ goTo(getExploreScene()); }}
       ]
     };
   }
@@ -237,8 +238,8 @@ peekBride:{
         <span class="whisper">"新郎……你来了。"</span> 这声音不是从她嘴里发出,而是<span class="em">从你脑子里</span>响起的。`,
       tips:[{text:'⚠ 你违反了规则三(亲揭新娘)。阴气侵蚀 +2,理智 -1。',warn:true}],
       choices:[
-        {text:'扯下她的盖头带走', action:()=>{ giveItem('paperBride'); setFlag('hasPaperBride'); goTo('mirror'); }},
-        {text:'退到镜台处', go:'mirror'}
+        {text:'扯下她的盖头带走', disabled:hasFlag('hasPaperBride'), action:()=>{ giveItem('paperBride'); setFlag('hasPaperBride'); goTo('bridal'); }},
+        {text:'退开,不敢再看', go:'bridal'}
       ]
     };
   }
@@ -256,7 +257,7 @@ mirror:{
         {text:'【线索·真相】阿鸢绝笔!她是被活活钉入棺中陪葬,临死前呼救无门。'}
       ],
       choices:[
-        {text:'收起证物,返回中庭', action:()=>{ giveItem('mirror'); giveItem('ash'); giveItem('fragment2'); giveItem('fragment3'); addTruth('letter'); checkAchievements(); safeAdvanceHour(); goTo(getExploreScene()); }}
+        {text:'收起证物,退回新房', action:()=>{ giveItem('mirror'); giveItem('ash'); giveItem('fragment2'); giveItem('fragment3'); addTruth('letter'); checkAchievements(); goTo('bridal'); }}
       ]
     };
   }
@@ -269,8 +270,9 @@ bridal2:{
         身后,轿中的窸窣声忽然停了。你不敢回头。`,
       tips:[{gain:true,text:'【获得】六枚铜钱(陪葬买路钱)'}],
       choices:[
+        {text:'【规则·真禁忌】鬼使神差,饮下一口合卺酒', disabled:hasFlag('drankWine'), log:'饮合卺酒', action:()=>{ setFlag('drankWine'); adjustYin(2); adjustSan(-1); Sound.drip(); flashTip('酒液入喉,是灰的味道。你听见自己喉咙里响起纸摩擦的声音。',true); goTo('bridal2'); }},
         {text:'去查看镜台', go:'mirror'},
-        {text:'直接回中庭', action:()=>{ safeAdvanceHour(); goTo(getExploreScene()); }}
+        {text:'退回新房', go:'bridal'}
       ]
     };
   }
@@ -286,10 +288,11 @@ shrine:{
         牌位前的蒲团旁,散落着一把<span class="em">锈剪刀</span>和一截黑炭。墙上挂着一幅画:一个梳着双髻的少女,怀里抱着一只红纸鸢——画下题字<span class="em">"阿鸢"</span>。<br><br>
         她的眼睛,无论你走到哪,都<span class="em">望着你</span>。`,
       choices:[
-        {text:'【规则五】用黑炭在地上写"阿鸢"之名(慎勿唤名)', log:'唤名', action:()=>{ setFlag('calledName'); adjustYin(2); adjustSan(-1); goTo('callName'); }},
-        {text:'【明智】不唤其名,只取剪刀', disabled:hasItem('scissors'), action:()=>{ giveItem('scissors'); setFlag('tookScissors'); goTo('shrine2'); }},
-        {text:'【明智】不唤其名,只取剪刀', disabled:!hasItem('scissors'), action:()=>{ goTo('shrine2'); }},
-        {text:'对着阿鸢的画像,深深一揖', action:()=>{ setFlag('bowed'); adjustSan(1); goTo('shrine2'); }}
+        {text:'【规则五】拈起黑炭,在地上写下"阿鸢"之名(慎勿唤名)', log:'唤名', action:()=>{ giveItem('charcoal'); setFlag('calledName'); adjustYin(2); adjustSan(-1); goTo('callName'); }},
+        {text:'拾起蒲团旁的锈剪刀与黑炭', disabled:hasItem('scissors'), action:()=>{ giveItem('scissors'); giveItem('charcoal'); setFlag('tookScissors'); goTo('shrine'); }},
+        {text:'从画像前取下她怀里那只红纸鸢', disabled:hasFlag('tookKite'), action:()=>{ setFlag('tookKite'); giveItem('kite'); Sound.bell(); checkAchievements(); goTo('shrine'); }},
+        {text:'对着阿鸢的画像,深深一揖', disabled:hasFlag('bowed'), action:()=>{ setFlag('bowed'); adjustSan(1); goTo('shrine'); }},
+        {text:'伏身查看供桌下', action:()=>{ goTo('shrine2'); }}
       ]
     };
   }
@@ -304,7 +307,7 @@ callName:{
       tips:[{text:'⚠ 你违反了规则五(呼名即现)。阴气侵蚀 +2,理智 -1。',warn:true}],
       choices:[
         {text:'用桃木簪逼退她', disabled:!hasItem('peach'), action:()=>{ setFlag('peachUsed'); adjustSan(1); goTo('shrine2'); }},
-        {text:'夺门逃回中庭', action:()=>{ adjustSan(-1); safeAdvanceHour(); goTo(getExploreScene()); }}
+        {text:'夺门逃回中庭', action:()=>{ adjustSan(-1); goTo(getExploreScene()); }}
       ]
     };
   }
@@ -322,7 +325,7 @@ shrine2:{
         {text:'【线索·真相·关键】真禁忌=不系红绳、不饮合卺酒、不亲揭新娘、唢呐时不回首。阿鸢所求:天明烧其骨灰与婚书。'}
       ],
       choices:[
-        {text:'铭记真禁忌,返回中庭', action:()=>{ setFlag('knowsTruth'); addTruth('trueBook'); checkAchievements(); safeAdvanceHour(); goTo(getExploreScene()); }}
+        {text:'铭记真禁忌,返回中庭', action:()=>{ giveItem('fullBook'); setFlag('knowsTruth'); addTruth('trueBook'); checkAchievements(); goTo(getExploreScene()); }}
       ]
     };
   }
@@ -353,7 +356,7 @@ ziShiPass:{
         不知过了多久,一切归于死寂。你冷汗湿透衣背,却<span class="em">活了下来</span>。<br><br>
         喜婆不知何时站在堂前,神色复杂地看了你一眼:<span class="whisper">"……是个有定力的。这关,你过了。"</span>`,
       tips:[{gain:true,text:'✓ 你通过了子时之劫(真规则二)。'}],
-      choices:[{text:'继续等待天明', action:()=>{ G.hour=3; goTo('explore2'); }}]
+      choices:[{text:'继续等待天明', action:()=>{ advanceToHour(3); goTo('explore2'); }}]
     };
   }
 },
@@ -377,7 +380,7 @@ ziShiFail:{
 explore2:{
   title:'丑时 · 老槐下',
   run(){
-    G.hour=3;
+    advanceToHour(3);
     return {
       text:`子时已过。红烛燃去过半,堂上的"囍"字在烛影里忽明忽暗。<br><br>
         你已知悉真相的轮廓——阿鸢,一个被活活殉葬的绣娘,她的怨念,和这本假禁忌册,困住了所有踏入红宅的"新郎"。<br><br>
@@ -392,7 +395,7 @@ finale:{
   title:'寅时 · 天将明',
   run(){
     Sound.stopHeart();
-    G.hour=4;
+    advanceToHour(4);
     return {
       text:`东方现出一线鱼肚白。红烛只剩寸许,摇摇欲坠。喜婆捧着最后一碗合卺酒,立在你面前:<br><br>
         <span class="ghost">"时辰到了,新郎官。行礼,便是夫妻;不行……这宅子,可没那么容易放人走。"</span><br><br>
@@ -417,7 +420,7 @@ under:{
         {text:'【真相全明】槐阴村冥婚乃陈族百年邪俗,以活人殉葬养煞。阿鸢是首位,你是最新一位。'}
       ],
       choices:[
-        {text:'带上全部证据,返回地面', action:()=>{ addTruth('village'); setFlag('fullTruth'); giveItem('weddingLetter'); giveItem('villageRecord'); checkAchievements(); goTo('explore2'); }}
+        {text:'带上全部证据,返回地面', action:()=>{ addTruth('village'); setFlag('fullTruth'); giveItem('weddingLetter'); giveItem('villageRecord'); checkAchievements(); goTo(getExploreScene()); }}
       ]
     };
   }
@@ -431,8 +434,11 @@ function buildExploreChoices(){
   c.push({text:'前往西厢·书房(查族谱)', go:'study', disabled:hasFlag('doneStudy')});
   c.push({text:'前往东厢·新房(见新娘)', go:'bridal', disabled:hasFlag('doneBridal')});
   c.push({text:'前往后院·祠堂(拜祖先)', go:'shrine', disabled:hasFlag('doneShrine')});
+  if(hasItem('mirror')&&hasItem('peach')&&hasFlag('knowsTruth')&&!hasFlag('fullTruth')){
+    c.push({text:'【隐藏】凭铜镜与桃木簪,寻地宫', go:'under'});
+  }
   if(hasFlag('doneStudy')&&hasFlag('doneBridal')&&hasFlag('doneShrine')&&!hasFlag('ziShiDone')){
-    c.push({text:'【时辰至】子时三刻,唢呐骤起', action:()=>{ setFlag('ziShiDone'); G.hour=2; goTo('ziShi'); }});
+    c.push({text:'【时辰至】子时三刻,唢呐骤起', action:()=>{ setFlag('ziShiDone'); advanceHour(); goTo('ziShi'); }});
   }
   return c;
 }
