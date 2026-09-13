@@ -9,18 +9,20 @@ let pendingTips=[];
 let typeTimer=null;
 
 /* ---------- 视角与存档 ---------- */
-const SAVE_KEY='hongzhiyuan_save_v2';
-const END_KEY='hongzhiyuan_endings_v2';
-const ACH_KEY='hongzhiyuan_achievements_v2';
-const POV_KEY='hongzhiyuan_pov_unlocked_v2';
-const MEM_KEY='hongzhiyuan_memory_v2'; // New Game+ 记忆
+const SAVE_KEY='hongzhiyuan_save_v3';
+const END_KEY='hongzhiyuan_endings_v3';
+const ACH_KEY='hongzhiyuan_achievements_v3';
+const POV_KEY='hongzhiyuan_pov_unlocked_v3';
+const MEM_KEY='hongzhiyuan_memory_v3'; // New Game+ 记忆
+const LEGACY_SAVE_KEY='hongzhiyuan_save_v2';
 
 const POV_LIST=['newcomer','ayuan','po']; // 新郎、阿鸢、喜婆
 
 function freshState(pov){
   const p=pov||'newcomer';
-  const startScene = p==='ayuan'?'ayuan_intro':p==='po'?'po_intro':'intro';
+  const startScene = p==='ayuan'?'ayuan_intro':p==='po'?'po_intro':'arrival';
   return {
+    version:3,
     pov: p,
     scene:startScene,
     san:10, yin:0,
@@ -28,6 +30,9 @@ function freshState(pov){
     inventory:[],
     rules:[],
     truths:[],
+    evidence:{paternal:0,marital:0,personal:0},
+    rite:0,
+    transcript:[],
     visited:{},
     choicesLog:[],
     hour:0,            // 0=戌时初, 1=亥时, 2=子时, 3=丑时, 4=寅时
@@ -44,15 +49,22 @@ function freshState(pov){
 function saveGame(){
   if(!G) return false;
   // 初始场景不允许存档（避免存档覆盖新游戏）
-  const startScenes=['intro','ayuan_intro','po_intro'];
+  const startScenes=['intro','arrival','ayuan_intro','po_intro'];
   if(startScenes.includes(G.scene)) return false;
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify(G)); return true; }catch(e){return false;}
 }
 function loadGame(){
-  try{ const s=localStorage.getItem(SAVE_KEY); if(s){ G=JSON.parse(s); return true; } }catch(e){}
+  try{
+    let s=localStorage.getItem(SAVE_KEY);
+    if(!s) s=localStorage.getItem(LEGACY_SAVE_KEY);
+    if(s){
+      G=normalizeGameState(JSON.parse(s));
+      return true;
+    }
+  }catch(e){}
   return false;
 }
-function hasSave(){ try{return !!localStorage.getItem(SAVE_KEY);}catch(e){return false;} }
+function hasSave(){ try{return !!(localStorage.getItem(SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY));}catch(e){return false;} }
 function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(x){} }
 
 function getEndings(){ try{return JSON.parse(localStorage.getItem(END_KEY)||'[]');}catch(e){return[];} }
@@ -85,24 +97,20 @@ function setMemory(v){ try{localStorage.setItem(MEM_KEY,JSON.stringify(v));}catc
 const el=id=>document.getElementById(id);
 
 function updateStats(){
-  el('bar-san').style.width=Math.max(0,G.san)/MAX_SAN*100+'%';
-  el('val-san').textContent=G.san;
-  el('bar-yin').style.width=Math.min(10,G.yin)/10*100+'%';
-  el('val-yin').textContent=G.yin;
   // 时辰显示
   if(el('hour-name')){
     el('hour-name').textContent=HOUR_NAMES[G.hour]||'';
     const candleLeft=Math.max(0,5-G.hour);
     el('candle-icon').textContent='🕯'.repeat(candleLeft)||'·';
   }
-  // 状态异变 body class
-  document.body.classList.remove('san-low','san-critical','yin-high','yin-extreme');
-  if(G.san<=3) document.body.classList.add('san-critical');
-  else if(G.san<=6) document.body.classList.add('san-low');
-  if(G.yin>=8) document.body.classList.add('yin-extreme');
-  else if(G.yin>=5) document.body.classList.add('yin-high');
-  // 心跳
-  if(G.san<=3) Sound.startHeart(); else Sound.stopHeart();
+  // 仪式渗透(隐藏数值)驱动的氛围：只改画面色调，不显示任何数字
+  document.body.classList.remove('rite-low','rite-mid','rite-high','rite-critical');
+  if(G.rite>=4) document.body.classList.add('rite-critical');
+  else if(G.rite>=3) document.body.classList.add('rite-high');
+  else if(G.rite>=2) document.body.classList.add('rite-mid');
+  else if(G.rite>=1) document.body.classList.add('rite-low');
+  // 心跳：仪式渗透临界时
+  if(G.rite>=4) Sound.startHeart(); else Sound.stopHeart();
 }
 
 function updateInventory(){
@@ -324,12 +332,12 @@ function reachEnding(endId){
   el('ending-tag').textContent=e.tag;
   el('ending-name').textContent=e.name;
   el('ending-text').innerHTML=e.text;
-  el('ending-stat').innerHTML=`理智残存 ${G.san} · 阴气侵蚀 ${G.yin} · 查明真相 ${G.truths.length}/${TRUTH_TOTAL} · 视角 ${G.pov==='ayuan'?'阿鸢':G.pov==='po'?'喜婆':'新郎'}`;
+  el('ending-stat').innerHTML=endingStatText();
   // 解锁提示
   const unlockEl=el('ending-unlock');
   const unlocked=[];
-  if(endId==='truth' && !isPovUnlocked('ayuan')){ unlockPov('ayuan'); unlocked.push('阿鸢视角'); }
-  if((endId==='truth'||endId==='save') && !isPovUnlocked('po')){ unlockPov('po'); unlocked.push('喜婆视角'); }
+  if(endId==='ending-loss' && !isPovUnlocked('ayuan')){ unlockPov('ayuan'); unlocked.push('阿鸢视角'); }
+  if(isPovUnlocked('ayuan') && (endId==='truth'||endId==='save'||endId==='ending-marriage'||endId==='ending-return') && !isPovUnlocked('po')){ unlockPov('po'); unlocked.push('喜婆视角'); }
   if(unlocked.length>0){
     unlockEl.textContent='已解锁：'+unlocked.join('、');
     unlockEl.classList.remove('hidden');
@@ -366,16 +374,10 @@ function renderScene(){
     if(el('choices').children.length>0)
       el('choices').scrollIntoView({behavior:'smooth',block:'end'});
   });
-  // 死亡边缘检查（不在 finale/结局场景触发）
-  if(G.san<=0 && G.scene!=='finale' && !G.scene.startsWith('ayuan_') && !G.scene.startsWith('po_')){
-    reachEnding('puppet');
-  }
 }
 
 function getCurrentScenes(){
-  if(G.pov==='ayuan') return SCENES_AYUAN;
-  if(G.pov==='po') return SCENES_PO;
-  return SCENES;
+  return scenesForPov(G.pov);
 }
 
 function markExploreDone(){

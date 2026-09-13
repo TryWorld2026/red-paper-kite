@@ -12,8 +12,6 @@
   <!-- 顶栏 -->
   <div class="topbar">
     <div class="stat-bar">
-      <div class="stat"><span class="lbl">理智</span><div class="bar"><div class="fill san" id="bar-san" style="width:100%"></div></div><span class="val" id="val-san">10</span></div>
-      <div class="stat"><span class="lbl">阴气</span><div class="bar"><div class="fill yin" id="bar-yin" style="width:0%"></div></div><span class="val" id="val-yin">0</span></div>
       <div class="hour-display"><span class="hour-name" id="hour-name"></span><span class="candle-icon" id="candle-icon"></span></div>
     </div>
     <div>
@@ -97,6 +95,7 @@
 <script src="js/sound.js"></script>
 <script src="data/events.js"></script>
 <script src="js/systems.js"></script>
+<script src="js/chapter-v3.js"></script>
 <script src="js/core.js"></script>
 <script src="js/scenes.js"></script>
 <script src="js/scenes_ayuan.js"></script>
@@ -106,7 +105,7 @@
 /* ============ 事件绑定与初始化 ============ */
 
 // 合并视角结局到主结局表
-Object.assign(ENDINGS, AYUAN_ENDINGS||{}, PO_ENDINGS||{});
+Object.assign(ENDINGS, ENDINGS_V3||{}, AYUAN_ENDINGS||{}, PO_ENDINGS||{});
 
 // 主菜单按钮
 el('btn-start').onclick=()=>startGame('newcomer');
@@ -149,7 +148,7 @@ document.body.addEventListener('keydown',tryStartBgm,{once:true});
 
 // 纸鸢飘落氛围粒子
 function spawnKiteParticle(){
-  if(document.body.classList.contains('san-critical') || document.body.classList.contains('san-low')){
+  if(document.body.classList.contains('rite-critical') || document.body.classList.contains('rite-high')){
     const k=document.createElement('div');
     k.className='kite-particle';
     k.textContent='🪁';
