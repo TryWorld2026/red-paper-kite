@@ -49,10 +49,10 @@ const MUTANTS = [
   {
     id: 'C-死路-定名去掉沉默兜底',
     file: 'js/chapter-v3.js',
-    desc: '让"喜婆替你落笔"永不可得 —— 证据不足 2 点的玩家直接卡死',
-    from: `{ id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage' }`,
+    desc: '让"喜婆替你落笔"永不可得。注：随机播放已不再报 —— naming 有了退路后 fuzzer 能自行脱身, 只有定向路线会撞穿',
+    from: `{ id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger' }`,
     to: `{ id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', condition:{flag:'neverAchievedFlag'} }`,
-    expect: ['3.', '4.', '12.'],
+    expect: ['3.', '4.'],
   },
 
   /* ---- 门控: 找名字这条进度线 ---- */
@@ -119,8 +119,8 @@ const MUTANTS = [
   {
     id: 'U-氛围-渗透极高时不再追加替念一句',
     file: 'js/chapter-v3.js',
-    from: `      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能替她把下面那句话念完。</span>';`,
-    to: `      if(G.rite>=9) text+='<br><br><span class="rited">你几乎能替她把下面那句话念完。</span>';`,
+    from: `      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';`,
+    to: `      if(G.rite>=9) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';`,
     expect: ['5.'],
   },
 
@@ -192,6 +192,43 @@ const MUTANTS = [
     from: `  if(fx.item) giveItem(fx.item);`,
     to: `  /* 遗物不入囊 */`,
     expect: ['11.'],
+  },
+
+  /* ---- 第二轮：对抗式审查后补上的四处修复 ---- */
+  {
+    id: 'V-刷分-增量记账失效',
+    file: 'js/chapter-v3.js',
+    desc: '还原成"每次点击都重新结算 rite/evidence" —— 掀帘与投火盆两条循环即可刷满隐藏状态',
+    from: `    const spentFlag='fx-spent-'+guardKey;
+    if(!hasFlag(spentFlag)){`,
+    to: `    const spentFlag='fx-spent-'+guardKey;
+    if(true){`,
+    expect: ['4.'],
+  },
+  {
+    id: 'W-陷阱门-定名退路被删',
+    file: 'js/chapter-v3.js',
+    desc: '还原成四条出边全指向结局 —— 1 点证据误点定名即被迫拿《正婚》',
+    from: `      { id:'not-yet', label:'笔还空着。退回中庭，再去找她的名字', next:'courtyard' },
+`,
+    to: ``,
+    expect: ['1.', '4.'],
+  },
+  {
+    id: 'X-措辞-追加句重新引入裸她',
+    file: 'js/chapter-v3.js',
+    desc: '还原旧文案：全文已改口为"新妇",句尾却仍写"替她"',
+    from: `      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';`,
+    to: `      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能替她把下面那句话念完。</span>';`,
+    expect: ['5.'],
+  },
+  {
+    id: 'Y-单程票-中庭回碑前的边被删',
+    file: 'js/chapter-v3.js',
+    from: `      { id:'stele', label:'退回村口的石碑前', next:'arrival' },
+`,
+    to: ``,
+    expect: ['1.'],
   },
 ];
 

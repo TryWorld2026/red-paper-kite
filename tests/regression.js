@@ -243,13 +243,29 @@ const graph = runJson(`(function(){
       if(CHAPTER_V3[n]&&!seen.has(n)){seen.add(n);q.push(n);} });
   }
   ids.forEach(id=>{ if(!seen.has(id)) unreachable.push(id); });
+  /* 终局门前必须留退路。"是否死路"必须按传递闭包判：
+     naming 的 personal 边指向 loss-question, 那是场景不是结局,
+     但它自己所有出边都通向结局 —— 所以 naming 同样是单向门。 */
+  const terminal=new Set(); let grew=true;
+  while(grew){ grew=false;
+    ids.forEach(id=>{ const cs=CHAPTER_V3[id].choices||[];
+      if(!cs.length || terminal.has(id)) return;
+      if(cs.every(c=>ENDINGS_V3[c.next]||terminal.has(c.next))){ terminal.add(id); grew=true; } }); }
+  const noExit=[...terminal].filter(id=>id!=='loss-question');
+  /* 中庭曾是单程票：进宅后再也回不到村口石碑 */
+  const fromCourt=new Set(['courtyard']),qc=['courtyard'];
+  while(qc.length){ const id=qc.shift();
+    (CHAPTER_V3[id].choices||[]).forEach(c=>{ if(CHAPTER_V3[c.next]&&!fromCourt.has(c.next)){fromCourt.add(c.next);qc.push(c.next);} }); }
+  const oneWay=!fromCourt.has('arrival');
   const endsWithEntry=Object.keys(ENDINGS_V3).filter(e=>ids.some(id=>(CHAPTER_V3[id].choices||[]).some(c=>c.next===e)));
-  return JSON.stringify({bad:bad,allOnce:allOnce,unreachable:unreachable,endsWithEntry:endsWithEntry,
-    sceneCount:ids.length,endingCount:Object.keys(ENDINGS_V3).length});
+  return JSON.stringify({bad:bad,allOnce:allOnce,unreachable:unreachable,noExit:noExit,oneWay:oneWay,
+    endsWithEntry:endsWithEntry,sceneCount:ids.length,endingCount:Object.keys(ENDINGS_V3).length});
 })()`);
 guard('无悬空跳转', () => check('坏边', graph.bad.length ? graph.bad.join(',') : '(无)', '(无)'));
 guard('无"全是选项皆一次性"的场景', () => check('重访即死锁场景', graph.allOnce.length ? graph.allOnce.join(',') : '(无)', '(无)'));
 guard('所有场景自 arrival 可达', () => check('不可达场景', graph.unreachable.length ? graph.unreachable.join(',') : '(无)', '(无)'));
+guard('结局门前不得断掉退路', () => check('必然终结的场景', graph.noExit.length ? graph.noExit.join(',') : '(无)', '(无)'));
+guard('进宅后仍须回得去村口', () => check('courtyard 单向门', graph.oneWay, 'false'));
 guard('三个结局均有入口', () => check('结局入口数', graph.endsWithEntry.length, '3'));
 
 /* =====================================================================
@@ -320,6 +336,35 @@ guard('同一路证据有上限,不可反复刷', () => {
   check('原始存储也被夹住(不靠读时兜底)', run('G.evidence.paternal'), '5');
   check('证据总数封顶', run('T.total()'), '5');
 });
+guard('可重复选项不得刷出隐藏状态', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='east-room'; adjustRite(0)`);
+  run(`(function(){ for(let i=0;i<30;i++){
+          currentScenes()['east-room'].run().choices.find(c=>c.text.indexOf('掀开')>=0).action();
+          currentScenes()['open-veil'].run().choices.find(c=>c.text.indexOf('放下')>=0).action(); } })()`);
+  check('掀帘 30 次后渗透仍为 1', run('G.rite'), '1');
+  check('掀帘仍可随时再掀(叙事未被锁死)', run(`currentScenes()['east-room'].run().choices.some(c=>c.text.indexOf('掀开')>=0)`), 'true');
+  run(`G.scene='shrine-room'`);
+  run(`(function(){ for(let i=0;i<30;i++){
+          currentScenes()['shrine-room'].run().choices.find(c=>c.text.indexOf('火盆')>=0).action();
+          currentScenes().burning.run().choices.find(c=>c.text.indexOf('退开')>=0).action(); } })()`);
+  check('投火盆 30 次后自称证据仍为 1', run('evidenceScore("personal")'), '1');
+  check('刷不到《失讳》门槛(需 2)', run('evidenceScore("personal") < 2'), 'true');
+});
+guard('误点定名不再被迫通关,可退回补证据', () => {
+  run(`T.wipe(); G=null; startGame();
+       T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
+       T.tap('courtyard','替她定名')`);
+  check('只有 1 点证据时仍可退出', run(`currentScenes().naming.run().choices.some(c=>c.text.indexOf('退回中庭')>=0)`), 'true');
+  check('退出前未触发任何结局', run('T.ended'), 'null');
+  run(`T.tap('naming','退回中庭')`);
+  check('退回后还在游戏内', run('T.at()'), 'courtyard');
+  check('退回后时辰不回拨', run('G.hour'), '4');
+  run(`T.tap('courtyard','去西厢'); T.tap('west-room','取走父亲的信'); T.tap('evidence-father','记住');
+       T.tap('west-room','合上箱子'); T.tap('courtyard','替她定名')`);
+  check('补证据后具名结局可选', run(`currentScenes().naming.run().choices.some(c=>c.text.indexOf('送她归宗')>=0)`), 'true');
+  run(`T.tap('naming','周氏')`);
+  check('最终仍能拿到归籍', run('T.ended'), 'ending-return');
+});
 guard('一次性选项用完即消失', () => {
   run(`T.wipe(); G=null; startGame();
        T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
@@ -366,6 +411,8 @@ guard('仪式渗透只以氛围与措辞现身', () => {
   run(`T.wipe(); G=null; startGame(); adjustRite(4); updateStats()`);
   check('渗透 4 挂 rite-critical', run(`document.body.classList.contains('rite-critical')`), 'true');
   check('渗透 4 追加替念一句', run(`currentScenes().courtyard.run().text.indexOf('class="rited"')>=0`), 'true');
+  check('追加句不得再引入裸"她"', run(`(function(){ addEvidence('marital',5);
+      const t=currentScenes().courtyard.run().text; return /替她|她的/.test(t.slice(t.indexOf('class="rited"'))); })()`), 'false');
   run(`G.rite=2; updateStats()`);
   check('渗透 2 不挂 critical', run(`document.body.classList.contains('rite-critical')`), 'false');
   check('渗透 2 挂 rite-mid', run(`document.body.classList.contains('rite-mid')`), 'true');
@@ -536,14 +583,16 @@ guard('单局集齐五件', () => {
 section('12. 随机播放冒烟测试');
 guard('500 局随机路线', () => {
   const stat = runJson(`(function(){
-    const bad=new Set(), ends=new Set(); let unconv=0;
+    const bad=new Set(), dist={}; let unconv=0;
     for(let i=0;i<500;i++){
       const p=T.fuzzOnce();
-      if(T.ended) ends.add(T.ended);
+      if(T.ended) dist[T.ended]=(dist[T.ended]||0)+1;
       if(p){ if(/未收敛/.test(p)) unconv++; else bad.add(p); }
     }
-    return JSON.stringify({problems:[...bad].join(' ; '),unconv:unconv,ends:[...ends].sort().join(',')});
+    return JSON.stringify({problems:[...bad].join(' ; '),unconv:unconv,dist:dist,
+      ends:Object.keys(dist).sort().join(',')});
   })()`);
+  console.log('  INFO  随机播放结局分布', JSON.stringify(stat.dist));
   check('异常', stat.problems || '(无)', '(无)');
   check('未收敛局数', stat.unconv, '0');
   check('随机也能撞到全部三结局', stat.ends, 'ending-loss,ending-marriage,ending-return');

@@ -13,7 +13,7 @@ const CHAPTER_V3 = {
       again:'你又回到碑前。红纸比方才更湿，边缘贴着石面，像刚有人用掌心压过。<br><br>碑上的字仍是那一句。只是“婿”字下面，多了一道与你手型相符的浅痕。'
     },
     choices:[
-      { id:'read-ledger', label:'查看碑侧的婚期账本', next:'gate-ledger', once:true, effects:{ evidence:{paternal:1} } },
+      { id:'read-ledger', label:'查看碑侧的婚期账本', next:'gate-ledger', effects:{ evidence:{paternal:1} } },
       { id:'enter', label:'进入挂着白灯笼的宅院', next:'courtyard' }
     ]
   },
@@ -36,10 +36,11 @@ const CHAPTER_V3 = {
       again:'红绳仍在喜婆手中，绳结却已经打好。<br><br>仿佛你离开的这一会儿，有人替你系上过，又解开。'
     },
     choices:[
-      { id:'rules', label:'问她，是哪三条规矩', next:'rules', once:true },
+      { id:'rules', label:'问她，是哪三条规矩', next:'rules' },
       { id:'west', label:'去西厢', next:'west-room' },
       { id:'east', label:'去东厢新房', next:'east-room' },
       { id:'shrine', label:'去后院祠堂', next:'shrine-room' },
+      { id:'stele', label:'退回村口的石碑前', next:'arrival' },
       { id:'reunion', label:'轿帘后传来纸摩擦的声音', next:'reunion', condition:{evidenceTotal:3} },
       { id:'naming', label:'天将明，走到牌位前替她定名', next:'naming', condition:{evidenceTotal:1} }
     ]
@@ -220,7 +221,8 @@ const CHAPTER_V3 = {
       { id:'paternal', label:'称她为周氏，送她归宗', next:'ending-return', condition:{minEvidence:{paternal:2}} },
       { id:'marital', label:'称她为陈门新妇，礼成', next:'ending-marriage', condition:{minEvidence:{marital:2}} },
       { id:'personal', label:'只念她自写的那个字：鸢', next:'loss-question', condition:{minEvidence:{personal:2}} },
-      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage' }
+      { id:'not-yet', label:'笔还空着。退回中庭，再去找她的名字', next:'courtyard' },
+      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger' }
     ]
   },
 
@@ -284,12 +286,21 @@ function endingStatText(){
 }
 
 /* ---------- 编译：把数据变成 core 可消费的 run() ---------- */
-function applyEffects(fx){
+/* rite/evidence 是"渗透"与"证据"的增量，必须一个选项只结算一次：
+   否则任何可重复选项（掀帘、投火盆）都能被循环刷满，隐藏状态就变成
+   了按按钮的次数，而不是玩家走过的剧情。flag/item 本身幂等，不记账。 */
+function applyEffects(fx, guardKey){
   if(!fx) return;
   if(fx.flag) setFlag(fx.flag);
   if(fx.item) giveItem(fx.item);
-  if(fx.rite) adjustRite(fx.rite);
-  if(fx.evidence) Object.keys(fx.evidence).forEach(k=>addEvidence(k,fx.evidence[k]));
+  if(fx.rite || fx.evidence){
+    const spentFlag='fx-spent-'+guardKey;
+    if(!hasFlag(spentFlag)){
+      if(fx.rite) adjustRite(fx.rite);
+      if(fx.evidence) Object.keys(fx.evidence).forEach(k=>addEvidence(k,fx.evidence[k]));
+      setFlag(spentFlag);
+    }
+  }
 }
 function choiceAvailable(choice){
   if(choice.once && hasFlag('choice-'+choice.id)) return false;
@@ -319,13 +330,13 @@ function compileScene(id){
       const again=(G.visited[id]||0)>1;
       let text = (again && d.text.again) ? d.text.again : d.text.first;
       text=substituteName(text);
-      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能替她把下面那句话念完。</span>';
+      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';
       const choices=(d.choices||[]).filter(choiceAvailable).map(choice=>({
         text:choice.label,
         mood:choice.mood||(/禁忌|违反|沉默/.test(choice.label)?'danger':null),
         action(){
           if(choice.once) setFlag('choice-'+choice.id);
-          applyEffects(choice.effects);
+          applyEffects(choice.effects, id+':'+choice.id);
           recordTranscript('choice',choice.id);
           if(ENDINGS_V3[choice.next]) reachEnding(choice.next);
           else goTo(choice.next);
