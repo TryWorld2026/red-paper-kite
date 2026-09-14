@@ -51,7 +51,7 @@ const MUTANTS = [
     file: 'js/chapter-v3.js',
     desc: '让"喜婆替你落笔"永不可得。注：随机播放已不再报 —— naming 有了退路后 fuzzer 能自行脱身, 只有定向路线会撞穿',
     from: `      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger',
-        usurp:{ minRite:2, warn:['warnDeputy','acceptedRules'] } }`,
+        usurp:{ explicit:true } }`,
     to: `      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger',
         condition:{flag:'neverAchievedFlag'} }`,
     expect: ['3.', '4.'],
@@ -287,6 +287,7 @@ const MUTANTS = [
   {
     id: 'Z6-剥夺-不再看渗透档位',
     file: 'js/chapter-v3.js',
+    desc: 'watch 在低渗透即被接管。注：代笔记账会改变 flags 集合，可能偶然扰动随机播放路径，使第 17 节一并报红 —— 那是溢出而非必然，不写入预期',
     from: `  if(u.minRite!=null && G.rite<u.minRite) return false;`,
     to: `  /* 渗透档位不再参与判定 */`,
     expect: ['14.'],

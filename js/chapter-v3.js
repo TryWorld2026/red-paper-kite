@@ -274,7 +274,7 @@ const CHAPTER_V3 = {
       { id:'personal', label:'只念她自写的那个字：鸢', next:'loss-question', condition:{minEvidence:{personal:2}} },
       { id:'not-yet', label:'笔还空着。退回中庭，再去找她的名字', next:'courtyard' },
       { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger',
-        usurp:{ minRite:2, warn:['warnDeputy','acceptedRules'] } }
+        usurp:{ explicit:true } }
     ]
   },
 
@@ -440,6 +440,9 @@ function warningsMet(choice){
 function usurpActive(choice){
   const u=choice && choice.usurp;
   if(!u) return false;
+  /* explicit: 这个选项本身就是"由仪式落笔"，玩家是完全自愿且被明告的，
+     不需要预警门槛 —— 门槛是为静默夺权（如 watch）而设的。 */
+  if(u.explicit) return true;
   if(u.minRite!=null && G.rite<u.minRite) return false;
   return warningsMet(choice)>=2;
 }

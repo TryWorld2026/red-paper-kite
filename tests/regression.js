@@ -744,16 +744,25 @@ guard('每条违规都在账上留一行, 且重访比对真认行数', () => {
    14. 节点剥夺: 全作唯一的夺权, 门槛必须极高
    ===================================================================== */
 section('14. 节点剥夺门槛');
-guard('不足两条预警或渗透不够则不剥夺', () => {
-  run(`T.wipe(); G=null; startGame(); G.scene='naming'; G.rite=2;
+/* 剥夺分两类, 门槛必须分别锁住 */
+guard('明示代笔(naming·let-them): 点了就必然入账, 不设门槛', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='naming'`);
+  check('零预警零渗透也算代笔', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'true');
+  run(`G.rite=4; setFlag('acceptedRules'); setFlag('warnDeputy')`);
+  check('预警齐备同样生效', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'true');
+  /* 理由: 选项字面已写明"喜婆替你落笔", 玩家是被明告的, 不是被静默夺权。
+     若这里再设门槛, 速通玩家点了这一击却查无痕迹 —— 账页就成了撒谎的证人。 */
+});
+guard('静默接管(reunion·watch): 须两条预警且渗透达标', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='reunion'; G.rite=3;
        setFlag('acceptedRules'); setFlag('warnDeputy')`);
-  check('两预警+渗透 2', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'true');
+  check('两预警+渗透 3 才接管', run(`usurpActive(CHAPTER_V3.reunion.choices.find(c=>c.id==='watch'))`), 'true');
   run(`G.rite=1`);
-  check('两预警+渗透 1 不剥夺', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'false');
+  check('渗透不足则不接管', run(`usurpActive(CHAPTER_V3.reunion.choices.find(c=>c.id==='watch'))`), 'false');
   run(`G.rite=4; delete G.flags.warnDeputy`);
-  check('缺一预警不剥夺', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'false');
+  check('缺一预警不接管', run(`usurpActive(CHAPTER_V3.reunion.choices.find(c=>c.id==='watch'))`), 'false');
   run(`G.flags={}`);
-  check('零预警不剥夺', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'false');
+  check('零预警不接管', run(`usurpActive(CHAPTER_V3.reunion.choices.find(c=>c.id==='watch'))`), 'false');
 });
 guard('剥夺一旦发生即入账并撼动锚点', () => {
   run(`T.wipe(); T.ended=null; G=null; startGame(); G.scene='naming';
