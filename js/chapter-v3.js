@@ -9,7 +9,11 @@ const CHAPTER_V3 = {
   arrival:{
     title:'槐阴村 · 婚期第三日',
     text:{
-      first:'你来迎亲，却没有人肯告诉你新娘在哪里。<br><br>村路口的石碑被红纸覆住，纸下拓着一行旧字：<span class="em">“新妇未至，婿不得归。”</span><br><br>你握住那封残缺婚书。纸上只剩她的姓，名字处被水渍洇开，像有人反复摩挲，想把它抹平。',
+      first:[
+        { when:{memory:true},
+          text:'你还是先走到了碑前。<br><br>红纸下那行旧字没有变：<span class="em">“新妇未至，婿不得归。”</span>只是“婿”字下面那道浅痕，比你记得的又深了一些。<br><br>碑不写你来过。你手上的墨写。' },
+        { text:'你来迎亲，却没有人肯告诉你新娘在哪里。<br><br>村路口的石碑被红纸覆住，纸下拓着一行旧字：<span class="em">“新妇未至，婿不得归。”</span><br><br>你握住那封残缺婚书。纸上只剩她的姓，名字处被水渍洇开，像有人反复摩挲，想把它抹平。' }
+      ],
       again:'你又回到碑前。红纸比方才更湿，边缘贴着石面，像刚有人用掌心压过。<br><br>碑上的字仍是那一句。只是“婿”字下面，多了一道与你手型相符的浅痕。'
     },
     choices:[
@@ -32,8 +36,16 @@ const CHAPTER_V3 = {
   courtyard:{
     title:'陈家老宅 · 中庭',
     text:{
-      first:'院中无风，满树红纸鸢却一起朝向东厢。<br><br>喜婆站在廊下，手里拿着一根未系的红绳：<span class="ghost">“新郎官来得不巧。你要找人，先应下三条规矩。”</span>',
-      again:'红绳仍在喜婆手中，绳结却已经打好。<br><br>仿佛你离开的这一会儿，有人替你系上过，又解开。'
+      first:[
+        { when:{rite:3},
+          text:'院中无风，满树红纸鸢却一起朝向东厢。<br><br>喜婆迎出来，两只手都拢在袖子里：<span class="ghost">“新郎回来了。礼数上你已替她全了几样，剩下的，也有人替你记着。”</span><br><br>喜婆不再问你要找谁。' },
+        { text:'院中无风，满树红纸鸢却一起朝向东厢。<br><br>喜婆站在廊下，手里拿着一根未系的红绳：<span class="ghost">“新郎官来得不巧。你要找人，先应下三条规矩。”</span>' }
+      ],
+      again:[
+        { when:{rite:3},
+          text:'红绳已经不在喜婆手里了。<br><br>你想不起它是什么时候系上的，也只记得自己从未答应过。' },
+        { text:'红绳仍在喜婆手中，绳结却已经打好。<br><br>仿佛你离开的这一会儿，有人替你系上过，又解开。' }
+      ]
     },
     choices:[
       { id:'rules', label:'问她，是哪三条规矩', next:'rules' },
@@ -85,7 +97,11 @@ const CHAPTER_V3 = {
     title:'西厢 · 嫁妆箱',
     text:{
       first:'箱中没有金银，只有一摞未交付的家书。<br><br>最上一封由父亲所写，抬头<span class="em">“周家小女”</span>；最下一封由夫家所写，抬头<span class="em">“陈门新妇”</span>。<br><br>两封信之间夹着一张没有抬头的纸：等我绣完这只纸鸢，我自己取名。',
-      again:'家书顺序变了。“我自己取名”那页被压到最底层，上面落了一层新鲜香灰。'
+      again:[
+        { when:{item:'unfinishedLetter'},
+          text:'家书顺序变了。原本压着那页无抬头之纸的位置空了，香灰直接落在箱底，<span class="em">灰上留着一个角翘起的印子</span>。<br><br>像是那页纸自己走开的。' },
+        { text:'家书顺序变了。“我自己取名”那页被压到最底层，上面落了一层新鲜香灰。' }
+      ]
     },
     choices:[
       { id:'take-father', label:'取走父亲的信', next:'evidence-father', once:true, effects:{ evidence:{paternal:2}, item:'fatherLetter' } },
@@ -132,7 +148,11 @@ const CHAPTER_V3 = {
     title:'东厢 · 空轿',
     text:{
       first:'轿帘低垂。里面没有重量，纸鞋底却沾着新鲜泥。<br><br>镜前放着一只未糊完的纸鸢。纸面上有个被涂黑的称呼，隐约还能辨出：<span class="em">“新娘”</span>。',
-      again:'轿帘仍垂着，但轿底泥印多出一双，方向从轿内<span class="em">朝外</span>。<br><br>纸鸢上的涂黑被指甲刮开，露出一小片空白。'
+      again:[
+        { when:{item:'kite'},
+          text:'轿帘仍垂着，但轿底泥印多出一双，方向从轿内<span class="em">朝外</span>。<br><br>镜前原本搁纸鸢的地方空了，台面上只余一圈指甲刮出的白痕。' },
+        { text:'轿帘仍垂着，但轿底泥印多出一双，方向从轿内<span class="em">朝外</span>。<br><br>纸鸢上的涂黑被指甲刮开，露出一小片空白。' }
+      ]
     },
     choices:[
       { id:'lift', label:'违反第二条规矩，掀开轿帘', next:'open-veil', effects:{ flag:'liftedVeil', rite:1 } },
@@ -203,7 +223,13 @@ const CHAPTER_V3 = {
     title:'子时 · 第一次照面',
     text:{
       first:'轿中人抬起头。她的五官还是空的，像没干透的纸。<br><br><span class="whisper">“良辰已至。恭请——”</span><br><br>她只会念礼词。念到“新妇”时顿了一下，那是九十年来，她第一次自己停下来。',
-      again:'她看见你，又把礼词从头念起。<br><br>念到昨夜你纠正过的那一处，仍会顿住。'
+      again:[
+        { when:{flag:'correctedName'},
+          text:'她看见你，又把礼词从头念起。<br><br>念到你纠正过的那一处，仍会顿住。' },
+        { when:{flag:'watchedRitual'},
+          text:'她看见你，把礼词从头念起。<br><br>这一回她念得极顺，一处也不停了——顺得像你上次听完时，替她把停顿也咽了回去。' },
+        { text:'她看见你，又把礼词从头念起。<br><br>念到一半，她抬眼看你是否会替她接下去。' }
+      ]
     },
     choices:[
       { id:'correct', label:'纠正称呼：你不只是“新妇”', next:'courtyard', once:true, effects:{ evidence:{personal:1}, rite:-1, flag:'correctedName' } },
@@ -302,12 +328,15 @@ function applyEffects(fx, guardKey){
     }
   }
 }
-function choiceAvailable(choice){
-  if(choice.once && hasFlag('choice-'+choice.id)) return false;
-  const c=choice.condition;
+/* 条件求值：选项门控与文案变体共用同一套形状，避免两处语义漂移 */
+function condMet(c){
   if(!c) return true;
   if(c.flag && !hasFlag(c.flag)) return false;
   if(c.notFlag && hasFlag(c.notFlag)) return false;
+  if(c.item && !hasItem(c.item)) return false;
+  if(c.notItem && hasItem(c.notItem)) return false;
+  if(c.memory && !getMemory()) return false;
+  if(c.rite!=null && G.rite<c.rite) return false;
   if(c.minEvidence){
     const met=Object.keys(c.minEvidence).some(k=>evidenceScore(k)>=c.minEvidence[k]);
     if(!met) return false;
@@ -317,6 +346,19 @@ function choiceAvailable(choice){
     if(total<c.evidenceTotal) return false;
   }
   return true;
+}
+function choiceAvailable(choice){
+  if(choice.once && hasFlag('choice-'+choice.id)) return false;
+  return condMet(choice.condition);
+}
+/* 文案变体：first/again 可以是字符串，也可以是按 when 取第一个成立项的数组。
+   数组必须以一个无 when 的兜底项收尾，否则新状态会渲染出 undefined。 */
+function pickText(variant){
+  if(typeof variant==='string') return variant;
+  if(Array.isArray(variant)){
+    for(const v of variant) if(condMet(v.when)) return v.text;
+  }
+  return null;
 }
 function substituteName(text){
   return G.rite>=2 ? text.replace(/她/g, dominantName()) : text;
@@ -328,7 +370,9 @@ function compileScene(id){
     title:d.title,
     run(){
       const again=(G.visited[id]||0)>1;
-      let text = (again && d.text.again) ? d.text.again : d.text.first;
+      const raw = again ? (d.text.again!=null ? d.text.again : d.text.first) : d.text.first;
+      let text = pickText(raw);
+      if(text==null) throw new Error('场景「'+id+'」的文案变体没有无条件的兜底项');
       text=substituteName(text);
       if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';
       const choices=(d.choices||[]).filter(choiceAvailable).map(choice=>({
