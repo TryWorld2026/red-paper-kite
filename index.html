@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>红纸鸢 · 纸扎冥婚</title>
+<title>红纸鸢 · 归名</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -29,35 +29,26 @@
     <div class="choices" id="choices"></div>
   </div>
 
-  <!-- 道具栏 -->
+  <!-- 遗物栏 -->
   <div class="inventory" id="inventory">
-    <span class="inv-title">行囊</span>
-    <span style="color:rgba(80,40,20,.5);font-size:13px;letter-spacing:1px;">空空如也</span>
+    <span class="inv-title">遗物</span>
+    <span class="inv-empty">尚未拾起任何名字</span>
   </div>
 
   <!-- 开始页 -->
   <div class="menu-screen" id="menu-screen">
     <div class="menu-title">红纸鸢</div>
-    <div class="menu-sub">纸 扎 冥 婚</div>
+    <div class="menu-sub">归 名</div>
     <div class="menu-desc">
-      民国二十三年,浙东槐阴村。<br>
-      一场办了九十年的喜事,今夜将续上最后一程。<br><br>
-      <span style="color:rgba(160,24,24,.7)">—— 你被请来做新郎。</span>
+      民国二十三年，浙东槐阴村。<br>
+      你来迎亲，却没有人肯告诉你新娘在哪里。<br><br>
+      <span class="menu-hazard">—— 找回她，你才能离村。而规矩说，别提她的名字。</span>
     </div>
     <button class="menu-btn primary" id="btn-start">入 宅</button>
     <button class="menu-btn" id="btn-continue">续 前 缘</button>
-    <button class="menu-btn" id="btn-pov">视 角</button>
-    <button class="menu-btn" id="btn-gallery">阅 录</button>
-    <button class="menu-btn" id="btn-ach">成 就</button>
+    <button class="menu-btn" id="btn-gallery">结 局 录</button>
     <button class="menu-btn" id="btn-sound">音效：开</button>
     <div class="menu-author">试 界 · TryWorld</div>
-  </div>
-
-  <!-- 视角选择页 -->
-  <div class="pov-screen hidden" id="pov-screen">
-    <div class="pov-title">择 一 双 眼 睛</div>
-    <div class="pov-cards" id="pov-cards"></div>
-    <button class="gallery-close" id="pov-close" style="margin-top:40px;">返 回</button>
   </div>
 
   <!-- 结局页 -->
@@ -66,7 +57,7 @@
     <div class="ending-name" id="ending-name"></div>
     <div class="ending-text" id="ending-text"></div>
     <div class="ending-stat" id="ending-stat"></div>
-    <div class="ending-unlock" id="ending-unlock"></div>
+    <div class="ending-unlock hidden" id="ending-unlock"></div>
     <button class="ending-btn" id="ending-restart">重 入 槐 阴</button>
     <button class="ending-btn" id="ending-gallery">查 阅 结 局 录</button>
     <div class="ending-author">—— 试 界 · TryWorld ——</div>
@@ -80,39 +71,20 @@
     <button class="gallery-close" id="gallery-close">关 闭</button>
   </div>
 
-  <!-- 成就页 -->
-  <div class="ach-screen hidden" id="ach-screen">
-    <div class="ach-title">成 就</div>
-    <div class="ach-count" id="ach-count"></div>
-    <div class="ach-grid" id="ach-grid"></div>
-    <button class="gallery-close" id="ach-close">关 闭</button>
-  </div>
-
 </div>
 
 <!-- 脚本加载（按依赖顺序） -->
 <script src="js/items.js"></script>
 <script src="js/sound.js"></script>
-<script src="data/events.js"></script>
-<script src="js/systems.js"></script>
 <script src="js/chapter-v3.js"></script>
 <script src="js/core.js"></script>
-<script src="js/scenes.js"></script>
-<script src="js/scenes_ayuan.js"></script>
-<script src="js/scenes_po.js"></script>
 
 <script>
 /* ============ 事件绑定与初始化 ============ */
 
-// 合并视角结局到主结局表
-Object.assign(ENDINGS, ENDINGS_V3||{}, AYUAN_ENDINGS||{}, PO_ENDINGS||{});
-
-// 主菜单按钮
-el('btn-start').onclick=()=>startGame('newcomer');
+el('btn-start').onclick=startGame;
 el('btn-continue').onclick=continueGame;
-el('btn-pov').onclick=()=>{ Sound.click(); showPovSelect(); };
 el('btn-gallery').onclick=()=>{ Sound.click(); showGallery(); };
-el('btn-ach').onclick=()=>{ Sound.click(); showAchievements(); };
 el('btn-sound').onclick=function(){
   const v=!Sound.isEnabled(); Sound.setEnabled(v);
   this.textContent='音效：'+(v?'开':'关');
@@ -120,20 +92,16 @@ el('btn-sound').onclick=function(){
 };
 
 // 顶栏按钮
-el('btn-save').onclick=()=>{ if(saveGame()){ flashTip('已存档。',false); showTips(null);} else { flashTip('尚无可存档的进度。',false); showTips(null);} };
-el('btn-load').onclick=()=>{ if(loadGame()){ renderScene(); flashTip('已读取存档。',false); showTips(null);} else { flashTip('无存档。',false); showTips(null);} };
-el('btn-menu').onclick=()=>{ if(confirm('返回主菜单?当前进度将自动保存。')){ saveGame(); showMenu(); } };
+el('btn-save').onclick=()=>{ if(saveGame()){ flashTip('已存档。',false); } else { flashTip('尚无可存档的进度。',false); } showTips(null); };
+el('btn-load').onclick=()=>{ if(loadGame()){ renderScene(); flashTip('已读取存档。',false); } else { flashTip('无存档。',false); } showTips(null); };
+el('btn-menu').onclick=()=>{ if(confirm('返回主菜单？当前进度将自动保存。')){ saveGame(); showMenu(); } };
 
-// 视角页关闭
-el('pov-close').onclick=()=>{ el('pov-screen').classList.add('hidden'); el('menu-screen').classList.remove('hidden'); Sound.click(); };
-
-// 图鉴/成就关闭
+// 图鉴关闭
 el('gallery-close').onclick=()=>{ el('gallery-screen').classList.add('hidden'); Sound.click(); };
-el('ach-close').onclick=()=>{ el('ach-screen').classList.add('hidden'); Sound.click(); };
 
 // 结局页按钮
 el('ending-restart').onclick=()=>{ el('ending-screen').classList.add('hidden'); showMenu(); };
-el('ending-gallery').onclick=()=>{ showGallery(); };
+el('ending-gallery').onclick=showGallery;
 
 // 首次交互后激活音频（含背景音乐）
 let bgmStarted=false;
@@ -146,9 +114,10 @@ function tryStartBgm(){
 document.body.addEventListener('click',tryStartBgm,{once:true});
 document.body.addEventListener('keydown',tryStartBgm,{once:true});
 
-// 纸鸢飘落氛围粒子
+// 纸鸢飘落：仪式渗透越深，越像有人在院里放过它
 function spawnKiteParticle(){
-  if(document.body.classList.contains('rite-critical') || document.body.classList.contains('rite-high')){
+  const b=document.body.classList;
+  if(b.contains('rite-high')||b.contains('rite-critical')){
     const k=document.createElement('div');
     k.className='kite-particle';
     k.textContent='🪁';

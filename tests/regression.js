@@ -1,11 +1,13 @@
 /* =====================================================================
-   红纸鸢 · 回归测试
+   红纸鸢 · 归名 (v3) 回归测试
    运行: node tests/regression.js
-   零第三方依赖:用 Node 内置 vm 加载游戏脚本,直接驱动场景逻辑。
+   零第三方依赖: 用 Node 内置 vm 加载游戏脚本, 直接驱动场景逻辑。
 
-   为什么需要它:本作的缺陷多为"随机播放测不出、定向走位才触发"一类
-   —— 进房未取关键证据即永久封死真相线、时辰倒退回拨、成就条件不可达。
-   因此这里用固定路线逐项断言,而非只做冒烟。
+   本作的地雷不是"算错数值", 而是文字冒险特有的三类:
+     A 零选项死路 —— 一次性选项走完后再进该场景就什么都没有
+     B 门控锁死 —— 达成条件需要的那条路本身被条件挡住了
+     C 数值泄漏 —— 隐藏状态(仪式渗透/名字证据)以数字形式出现在画面或文本里
+   因此这里用"静态图检查 + 定向路线 + 随机播放"三层夹击, 而非只做冒烟。
    ===================================================================== */
 
 const fs = require('fs');
@@ -13,29 +15,35 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const SCRIPTS = [
-  'js/items.js', 'js/sound.js', 'data/events.js', 'js/systems.js',
-  'js/core.js', 'js/scenes.js', 'js/scenes_ayuan.js', 'js/scenes_po.js',
-];
+const SCRIPTS = ['js/items.js', 'js/sound.js', 'js/chapter-v3.js', 'js/core.js'];
 
 /* ---------- 最小 DOM / localStorage 桩 ---------- */
+function makeClassList(){
+  return {
+    _s: new Set(),
+    add(...c) { c.forEach(x => this._s.add(x)); },
+    remove(...c) { c.forEach(x => this._s.delete(x)); },
+    contains(c) { return this._s.has(c); }
+  };
+}
 function makeEl() {
   return {
     style: {}, innerHTML: '', textContent: '', scrollTop: 0, scrollHeight: 0, onclick: null,
-    classList: { add() {}, remove() {}, contains() { return false; } },
+    className: '',
+    classList: makeClassList(),
     children: { length: 0 },
-    appendChild() {}, addEventListener() {}, scrollIntoView() {},
+    appendChild() {}, addEventListener() {}, scrollIntoView() {}, remove() {},
   };
 }
 const elements = {};
 const store = {};
 const sandbox = {
-  console, Math, JSON, Set, Object, Array,
+  console, Math, JSON, Set, Object, Array, String, Number, Boolean, RegExp, Error, Date,
   setTimeout: fn => fn(), clearTimeout() {}, setInterval: () => 0, clearInterval() {},
   document: {
     getElementById: id => (elements[id] || (elements[id] = makeEl())),
     createElement: makeEl,
-    body: { classList: { add() {}, remove() {}, contains() { return false; } }, appendChild() {}, addEventListener() {} },
+    body: { classList: makeClassList(), appendChild() {}, addEventListener() {} },
   },
   localStorage: {
     getItem: k => (k in store ? store[k] : null),
@@ -48,154 +56,167 @@ const sandbox = {
 };
 sandbox.global = sandbox;
 vm.createContext(sandbox);
-
 for (const rel of SCRIPTS) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, rel), 'utf8'), sandbox, { filename: rel });
 }
 
 /* ---------- 测试驱动 ---------- */
 vm.runInContext(`
-Object.assign(ENDINGS, AYUAN_ENDINGS || {}, PO_ENDINGS || {});
-
-/* 打字机与选项渲染拖慢且与逻辑无关,直接短路 */
-renderText = function (text, done) { if (done) done(); };
+/* 打字机与选项渲染拖慢且与逻辑无关, 直接短路; 但保留一份"上屏文本"快照供泄漏检查 */
+T.screen = { narration: '', tips: [] };
+renderText = function (text, done) { T.screen.narration = text; if (done) done(); };
 renderChoices = function () {};
+const _showTips = showTips;
+showTips = function (tips) { _showTips(tips); T.screen.tips = (tips || []).map(t => t.text); };
 
-/* 结局哨兵:到达结局即停止推进,便于随机播放判定收敛 */
+/* 结局哨兵 */
 T.ended = null;
 const _reachEnding = reachEnding;
 reachEnding = function (id) { T.ended = id; _reachEnding(id); };
 
-/* 时间回拨哨兵:任何让 hour 变小的路径都要被抓到 */
+/* 时辰回拨哨兵: advanceHourTo 是本作唯一的时间写入点 */
 T.hourBad = [];
-const _advanceHour = advanceHour;
-advanceHour = function () {
-  const before = G.hour; _advanceHour();
-  if (G.hour < before) T.hourBad.push('advanceHour ' + before + '->' + G.hour);
-};
-const _goTo = goTo;
-goTo = function (id, fx) {
-  const before = G.hour; _goTo(id, fx);
-  if (G && G.hour < before) T.hourBad.push('进入 ' + id + ' 时回拨 ' + before + '->' + G.hour);
+const _advanceHourTo = advanceHourTo;
+advanceHourTo = function (h) {
+  const before = G.hour; _advanceHourTo(h);
+  if (G.hour < before) T.hourBad.push('advanceHourTo(' + h + ') ' + before + '->' + G.hour);
 };
 
-/* 点击 scene 中文案含 frag 的选项;不存在或被禁用即视为失败 */
+/* 一次性选项标记与场景跳转都必须记录, 便于定向复现 */
 T.tap = function (scene, frag) {
   const before = G.hour;
-  const list = (getCurrentScenes()[scene].run().choices) || [];
+  const list = (currentScenes()[scene].run().choices) || [];
   const hit = list.find(c => c.text.indexOf(frag) >= 0);
-  if (!hit) throw new Error('场景「' + scene + '」无选项含「' + frag + '」;实际: ' + list.map(c => c.text).join(' | '));
+  if (!hit) throw new Error('场景「' + scene + '」无可用选项含「' + frag + '」; 实际: ' + (list.map(c => c.text).join(' | ') || '(零选项)'));
   if (hit.disabled) throw new Error('场景「' + scene + '」选项「' + frag + '」是禁用的');
-  if (hit.log) G.choicesLog.push(hit.log);
-  if (hit.action) hit.action(); else if (hit.go) goTo(hit.go, hit.fx);
-  /* 哨兵主战场:一次点击走完整个选项回调,任何位置的时辰倒退都会在此暴露 */
+  hit.action();
+  /* 一次点击可能走完整条回调链, 回拨只会在此暴露 */
   if (G && G.hour < before) T.hourBad.push('点击「' + frag + '」致回拨 ' + before + '->' + G.hour);
 };
 
-T.wipe = function () {
-  ['hongzhiyuan_achievements_v2', 'hongzhiyuan_endings_v2',
-   'hongzhiyuan_pov_unlocked_v2', 'hongzhiyuan_save_v2'].forEach(k => localStorage.removeItem(k));
-};
-T.ach = id => getAchievements().indexOf(id) >= 0;
+T.KEYS = ['hongzhiyuan_save_v3', 'hongzhiyuan_endings_v3', 'hongzhiyuan_memory_v3',
+          'hongzhiyuan_save_v2', 'hongzhiyuan_endings_v2', 'hongzhiyuan_achievements_v2',
+          'hongzhiyuan_pov_unlocked_v2', 'hongzhiyuan_memory_v2'];
+T.wipe = function () { T.KEYS.forEach(k => localStorage.removeItem(k)); };
 T.end = id => getEndings().indexOf(id) >= 0;
-T.at  = () => (G ? G.scene : null);
+T.at = () => (G ? G.scene : null);
 T.pick = arr => arr[Math.floor(Math.random() * arr.length)];
+T.total = () => evidenceScore('paternal') + evidenceScore('marital') + evidenceScore('personal');
 
-/*
- * 按选项搭一条完整路线。每步显式可选,避免用例之间互相依赖残留状态。
- *  入口:  stele(读石碑,给红烛+真相) / candle(点烛)
- *  红绳:  cord
- *  书房:  frag(婚书残页一)
- *  新房:  peek(掀帘) veil(取盖头) wine(取合卺酒) drink(饮一口)
- *  祠堂:  scissors(剪刀+黑炭) kite(画像纸鸢) bow(一揖)
- *  地宫:  under(在子时前后各试一次)
- *  子时:  turn(回首) mirrorTrick(借镜)  默认不回首
- *  终局:  ending('truth'|'save'|'flee'|...)
- */
-T.route = function (o) {
+/* 进宅: 默认先读碑侧账本(拿到"周氏"), 这是唯一带 paternal 证据的入门口 */
+T.enter = function (o) {
   o = o || {};
   T.wipe(); T.ended = null; G = null;
-  startGame('newcomer');
-
-  if (o.stele) { T.tap('intro', '石碑'); T.tap('stele', '前往红宅'); }
-  else T.tap('intro', '走近那座');
-  if (o.candle) T.tap('gate', '点燃'); else T.tap('gate', '走进');
-  T.tap('hall1', '接过'); T.tap('rules', '牢记');
-  T.tap('hall2', o.cord ? '系上红绳' : '不系');
-  T.tap('cordResult', '继续');
-
-  T.tap('explore', '书房');
-  if (o.frag) T.tap('study', '捡起半张');
-  T.tap('study', '书架后'); T.tap('study2', '返回中庭');
-
-  T.tap('explore', '新房');
-  if (o.peek) {
-    T.tap('bridal', '掀开轿帘');
-    T.tap('peekBride', o.veil ? '扯下她的盖头' : '退开');
-  }
-  T.tap('bridal', '镜台'); T.tap('mirror', '退回');
-  if (o.wine) {
-    T.tap('bridal', '拿走桌上');
-    if (o.drink) T.tap('bridal2', '饮下一口');
-    T.tap('bridal2', '退回新房');
-  }
-  T.tap('bridal', '返回中庭');
-  if (o.stopAt === 'preShrine') return;
-
-  T.tap('explore', '祠堂');
-  if (o.scissors) T.tap('shrine', '拾起蒲团旁');
-  if (o.kite) T.tap('shrine', '从画像前');
-  if (o.bow) T.tap('shrine', '深深一揖');
-  T.tap('shrine', '供桌下'); T.tap('shrine2', '铭记');
-
-  if (o.under && o.underEarly) { T.tap('explore', '地宫'); T.tap('under', '返回地面'); }
-  if (o.stopAt === 'preZiShi') return;
-
-  T.tap('explore', '子时三刻');
-  if (o.turn) {
-    T.tap('ziShi', '忍不住回头');
-    T.tap('ziShiFail', o.peachPush ? '用桃木簪刺向她' : '拼死挣脱');
-  } else if (o.mirrorTrick) {
-    T.tap('ziShi', '举起阴阳铜镜');
-    T.tap('ziShiPass', '继续等待天明');
-  } else {
-    T.tap('ziShi', '死也不回头');
-    T.tap('ziShiPass', '继续等待天明');
-  }
-
-  if (o.under && !o.underEarly) { T.tap('explore2', '地宫'); T.tap('under', '返回地面'); }
-  if (o.ending) { T.tap('explore2', '喜堂'); T.tap('finale', o.ending); }
+  startGame();
+  if (o.ledger !== false) { T.tap('arrival', '婚期账本'); T.tap('gate-ledger', '记住'); }
+  T.tap('arrival', '进入挂着白灯笼');
 };
 
-/* 随机播放一局;返回 null 表示正常收场,否则返回问题描述 */
-T.fuzzOnce = function (pov) {
-  T.ended = null; G = null;
-  startGame(pov); clearSave();
-  for (let step = 0; step < 200; step++) {
-    const sc = getCurrentScenes()[G.scene];
+T.court = function () { T.tap('courtyard', '是哪三条规矩'); T.tap('rules', '应下规矩'); };
+
+/*
+ * 三条终局路线。每步显式给出, 用例之间不共享残留状态。
+ *  return   : 父证 >=2 → 归籍
+ *  marriage : 夫证 >=2 → 正婚;  silent 则走"喜婆替你落笔"兜底
+ *  loss     : 自称 >=2 → 失讳
+ */
+T.route = function (kind) {
+  if (kind === 'return') {
+    T.enter(); T.court();
+    T.tap('first-call', '守住第一条规矩');
+    T.tap('courtyard', '去西厢');
+    T.tap('west-room', '取走父亲的信');
+    T.tap('evidence-father', '记住');
+    T.tap('west-room', '合上箱子');
+    T.tap('courtyard', '替她定名');
+    T.tap('naming', '周氏');
+    return;
+  }
+  if (kind === 'marriage') {
+    T.enter(); T.court();
+    T.tap('first-call', '守住第一条规矩');
+    T.tap('courtyard', '去西厢');
+    T.tap('west-room', '取走夫家的信');
+    T.tap('evidence-husband', '记住');
+    T.tap('west-room', '合上箱子');
+    T.tap('courtyard', '去后院祠堂');
+    T.tap('shrine-room', '问这块牌位');
+    T.tap('tablet-talk', '退回祠堂');
+    T.tap('shrine-room', '退出祠堂');
+    T.tap('courtyard', '替她定名');
+    T.tap('naming', '陈门新妇');
+    return;
+  }
+  if (kind === 'marriage-silent') {
+    /* 只读了账本、什么都没深究的新郎: 系统会替他写完这个名字 */
+    T.enter(); T.court();
+    T.tap('first-call', '守住第一条规矩');
+    T.tap('courtyard', '替她定名');
+    T.tap('naming', '喜婆替你落笔');
+    return;
+  }
+  if (kind === 'loss') {
+    T.enter(); T.court();
+    T.tap('first-call', '回应门外');
+    T.tap('answered-call', '退开');
+    T.tap('courtyard', '去西厢');
+    T.tap('west-room', '没有抬头');
+    T.tap('evidence-personal', '空白');
+    T.tap('west-room', '合上箱子');
+    T.tap('courtyard', '替她定名');
+    T.tap('naming', '自写的那个字');
+    T.tap('loss-question', '把名字还给你');
+    return;
+  }
+  if (kind === 'reunion') {
+    /* 三类证据各至少一枚 → 照面, 再把她从"新妇"里纠正出来 */
+    T.enter(); T.court();
+    T.tap('first-call', '守住第一条规矩');
+    T.tap('courtyard', '去西厢');
+    T.tap('west-room', '没有抬头');
+    T.tap('evidence-personal', '空白');
+    T.tap('west-room', '取走夫家的信');
+    T.tap('evidence-husband', '记住');
+    T.tap('west-room', '合上箱子');
+    T.tap('courtyard', '去东厢新房');
+    T.tap('east-room', '取走纸鸢');
+    T.tap('kite-clue', '收好');
+    T.tap('east-room', '退出新房');
+    T.tap('courtyard', '轿帘后');
+    T.tap('reunion', '纠正称呼');
+    return;
+  }
+  throw new Error('未知路线 ' + kind);
+};
+
+/* 随机播放一局; 返回 null 表示正常收场, 否则返回问题描述 */
+T.fuzzOnce = function () {
+  T.ended = null; T.hourBad.length = 0; G = null;
+  startGame(); clearSave();
+  for (let step = 0; step < 400; step++) {
+    const sc = currentScenes()[G.scene];
     if (!sc) return '缺失场景 ' + G.scene;
     let data;
     try { data = sc.run(); } catch (e) { return '渲染异常 ' + G.scene + ': ' + e.message; }
     const usable = (data.choices || []).filter(c => !c.disabled);
-    if (!usable.length) return '死胡同 ' + G.scene;
+    if (!usable.length) return '零选项死路 ' + G.scene;
     const c = T.pick(usable);
-    if (c.log) G.choicesLog.push(c.log);
-    try { if (c.action) c.action(); else if (c.go) goTo(c.go, c.fx); }
-    catch (e) { return '跳转异常 ' + G.scene + ': ' + e.message; }
+    try { c.action(); } catch (e) { return '跳转异常 ' + G.scene + ': ' + e.message; }
     if (T.ended) return null;
-    if (G.san <= 0 && G.scene !== 'finale' && !/^(ayuan_|po_)/.test(G.scene)) return null;
+    if (T.hourBad.length) return '时辰回拨: ' + T.hourBad[0];
   }
-  return '200 步未收敛,停在 ' + G.scene;
+  return '400 步未收敛, 停在 ' + G.scene;
 };
 `, sandbox);
 
 const run = expr => vm.runInContext(expr, sandbox);
+const runJson = expr => JSON.parse(vm.runInContext(expr, sandbox));
 
 let failed = 0;
 function check(name, actual, expected) {
   const ok = String(actual) === String(expected);
   if (!ok) failed++;
-  console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(32)} ${actual}${ok ? '' : `   ← 期望 ${expected}`}`);
+  console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(34)} ${actual}${ok ? '' : `   ← 期望 ${expected}`}`);
 }
 function section(t) { console.log(`\n${t}`); }
 function guard(name, fn) {
@@ -203,153 +224,331 @@ function guard(name, fn) {
 }
 
 /* =====================================================================
-   1. 软锁:进了房间却没取关键证据,必须还能折返补齐
+   1. 静态图检查: 不跑起来就能发现的结构性缺陷
    ===================================================================== */
-section('1. 软锁回归 —— 进新房未看镜台');
-guard('进房即走不得封死真相线', () => {
-  run(`T.wipe(); G=null; startGame('newcomer');
-       T.tap('intro','走近那座'); T.tap('gate','走进');
-       T.tap('hall1','接过'); T.tap('rules','牢记'); T.tap('hall2','不系'); T.tap('cordResult','继续');
-       T.tap('explore','新房'); T.tap('bridal','返回中庭')`);
-  check('doneBridal 未提前置位', run('!!G.flags.doneBridal'), 'false');
-  check('新房仍可再进', run(`getCurrentScenes().explore.run().choices.find(c=>c.text.indexOf('新房')>=0).disabled`), 'false');
-  run(`T.tap('explore','新房'); T.tap('bridal','镜台'); T.tap('mirror','退回'); T.tap('bridal','返回中庭')`);
-  check('镜台证据可补齐', run(`['mirror','ash','fragment2','fragment3'].every(hasItem)`), 'true');
-});
-
-section('2. 软锁回归 —— 从唤名处逃回中庭');
-guard('逃回后祠堂仍可完成', () => {
-  run(`T.route({ stele:true, candle:true, frag:true, stopAt:'preShrine' });
-       T.tap('explore','祠堂'); T.tap('shrine','拈起黑炭'); T.tap('callName','夺门逃回')`);
-  check('doneShrine 未提前置位', run('!!G.flags.doneShrine'), 'false');
-  check('祠堂仍可再进', run(`getCurrentScenes().explore.run().choices.find(c=>c.text.indexOf('祠堂')>=0).disabled`), 'false');
-  run(`T.tap('explore','祠堂'); T.tap('shrine','供桌下'); T.tap('shrine2','铭记')`);
-  check('补齐后子时之劫出现', run(`!!getCurrentScenes().explore.run().choices.find(c=>c.text.indexOf('子时三刻')>=0)`), 'true');
-});
+section('1. 场景图静态不变量');
+const graph = runJson(`(function(){
+  const ids=Object.keys(CHAPTER_V3), bad=[], allOnce=[], unreachable=[];
+  ids.forEach(id=>{
+    const cs=CHAPTER_V3[id].choices||[];
+    if(!cs.length) bad.push(id+':无任何选项');
+    cs.forEach(c=>{ if(!ENDINGS_V3[c.next] && !CHAPTER_V3[c.next]) bad.push(id+'.'+c.id+' -> 未知目标 '+c.next); });
+    /* 全是一次性选项的场景 = 重访必死 */
+    if(cs.length && cs.every(c=>c.once)) allOnce.push(id);
+  });
+  /* 从 arrival 出发的可达闭包 */
+  const seen=new Set(['arrival']), q=['arrival'];
+  while(q.length){ const id=q.shift();
+    (CHAPTER_V3[id].choices||[]).forEach(c=>{ const n=c.next;
+      if(CHAPTER_V3[n]&&!seen.has(n)){seen.add(n);q.push(n);} });
+  }
+  ids.forEach(id=>{ if(!seen.has(id)) unreachable.push(id); });
+  const endsWithEntry=Object.keys(ENDINGS_V3).filter(e=>ids.some(id=>(CHAPTER_V3[id].choices||[]).some(c=>c.next===e)));
+  return JSON.stringify({bad:bad,allOnce:allOnce,unreachable:unreachable,endsWithEntry:endsWithEntry,
+    sceneCount:ids.length,endingCount:Object.keys(ENDINGS_V3).length});
+})()`);
+guard('无悬空跳转', () => check('坏边', graph.bad.length ? graph.bad.join(',') : '(无)', '(无)'));
+guard('无"全是选项皆一次性"的场景', () => check('重访即死锁场景', graph.allOnce.length ? graph.allOnce.join(',') : '(无)', '(无)'));
+guard('所有场景自 arrival 可达', () => check('不可达场景', graph.unreachable.length ? graph.unreachable.join(',') : '(无)', '(无)'));
+guard('三个结局均有入口', () => check('结局入口数', graph.endsWithEntry.length, '3'));
 
 /* =====================================================================
-   3. 时辰:全程只能向前,不得出现"寅时倒退回子时"
+   2. 零选项死路: 把每个场景在其"已消耗一次性选项"后再进一次
    ===================================================================== */
-section('3. 时辰单调性');
-guard('完整路线无回拨', () => {
-  run(`T.hourBad.length = 0;
-       T.route({ stele:true, candle:true, frag:true, under:true, ending:'【真相】' })`);
-  check('回拨次数', run('T.hourBad.length'), '0');
-  check('终局时辰为寅时(4)', run('G.hour'), '4');
-});
-
-/* =====================================================================
-   4. 成就可达性 —— 这些条件都曾因机制而在数学上不可能满足
-   ===================================================================== */
-section('4. 速悟 fast_truth —— 子时前集齐全部真相');
-guard('地宫可在子时前进入', () => {
-  run(`T.route({ stele:true, candle:true, frag:true, scissors:true, kite:true,
-                 wine:true, under:true, underEarly:true, stopAt:'preZiShi' })`);
-  check('真相数', run('G.truths.length'), '6');
-  check('时辰仍早于子时', run('G.hour < 2'), 'true');
-  check('fast_truth 解锁', run(`T.ach('fast_truth')`), 'true');
-  check('回到子时前中枢', run('T.at()'), 'explore');
-});
-
-section('5. 忤逆新郎 broke_all_rules —— 四条真禁忌全破且存活');
-guard('破全四条仍以逃离收场', () => {
-  run(`T.route({ cord:true, peek:true, wine:true, drink:true, turn:true, peachPush:true,
-                 ending:'【逃离】' })`);
-  check('四条 flag 齐备', run(`['woreCord','peekedBride','drankWine','turned'].every(hasFlag)`), 'true');
-  check('存活', run(`T.end('flee')`), 'true');
-  check('broke_all_rules', run(`T.ach('broke_all_rules')`), 'true');
-  check('no_rule_broken 不误发', run(`T.ach('no_rule_broken')`), 'false');
-});
-
-section('6. 守礼之人 no_rule_broken —— 一条不犯');
-guard('干净路线以超度收场', () => {
-  run(`T.route({ stele:true, candle:true, frag:true, scissors:true, kite:true, bow:true,
-                 under:true, ending:'【超度】' })`);
-  check('四条 flag 均未触发', run(`['woreCord','peekedBride','drankWine','turned'].some(hasFlag)`), 'false');
-  check('超度结局', run(`T.end('save')`), 'true');
-  check('no_rule_broken', run(`T.ach('no_rule_broken')`), 'true');
-  check('替她说话 save_ayuan', run(`T.ach('save_ayuan')`), 'true');
-});
-
-section('6a. 规则成就门槛 —— 死亡结局不得解锁');
-guard('破全四条但赴死,不计忤逆新郎', () => {
-  run(`T.route({ cord:true, peek:true, wine:true, drink:true, turn:true, peachPush:true,
-                 ending:'【从命】' })`);
-  check('确为死亡结局', run(`T.end('puppet')`), 'true');
-  check('四条 flag 确实全破', run(`['woreCord','peekedBride','drankWine','turned'].every(hasFlag)`), 'true');
-  check('broke_all_rules 不解锁', run(`T.ach('broke_all_rules')`), 'false');
-});
-
-section('6b. 规则成就门槛 —— 副视角不得白送守礼之人');
-guard('阿鸢视角吉结局不送 no_rule_broken', () => {
-  run(`T.wipe(); G=null; startGame('ayuan');
-       T.tap('ayuan_intro','…'); T.tap('ayuan_chosen','…'); T.tap('ayuan_nailed','…');
-       T.tap('ayuan_darkness','等'); T.tap('ayuan_waiting','观察');
-       T.tap('ayuan_observe','没有系红绳'); T.tap('ayuan_help','等待');
-       T.tap('ayuan_finale','【放手】')`);
-  check('阿鸢视角吉结局', run(`T.end('ayuan_peace')`), 'true');
-  check('四个 flag 本就不存在', run(`['woreCord','peekedBride','drankWine','turned'].some(hasFlag)`), 'false');
-  check('no_rule_broken 不白送', run(`T.ach('no_rule_broken')`), 'false');
-  check('鸢之视角正常解锁', run(`T.ach('ayuan_pov')`), 'true');
-});
-
-section('7. 行囊满载 all_items —— 道具表逐项可得');
-guard('单局集齐全部声明道具', () => {
-  run(`T.route({ stele:true, candle:true, frag:true, peek:true, veil:true, wine:true,
-                 scissors:true, kite:true, bow:true, under:true, ending:'【真相】' })`);
-  const missing = run(`Object.keys(ITEMS).filter(k=>G.inventory.indexOf(k)<0)`);
-  check('缺失道具', missing.length ? missing.join(',') : '(无)', '(无)');
-  check('all_items', run(`T.ach('all_items')`), 'true');
-  check('纸鸢三枚 kite_collector', run(`T.ach('kite_collector')`), 'true');
-  check('真相结局', run(`T.end('truth')`), 'true');
-  check('阿鸢+喜婆视角解锁', run('getUnlockedPov().length'), '3');
-});
-
-/* =====================================================================
-   5. 引擎层不变量
-   ===================================================================== */
-section('8. 幻象点击计数跨存档存活');
-guard('illusionClicks 随存档持久化', () => {
-  run(`T.wipe(); G=null; startGame('newcomer');
-       for(let i=0;i<5;i++) onIllusionClick();
-       G.scene='explore'; saveGame(); G=null; loadGame();`);
-  check('读档后计数', run('G.illusionClicks'), '5');
-  check('illusion_5 解锁', run(`T.ach('illusion_5')`), 'true');
-});
-
-section('9. 随机事件池不变量');
-guard('300 局抽池统计', () => {
-  const stat = run(`(function(){
-    const itemTotal=Object.keys(RANDOM_EVENTS).filter(e=>RANDOM_EVENTS[e].item).length;
-    let lost=0, contradict=0, min=99, max=0;
-    for(let i=0;i<300;i++){
-      G=null; startGame('newcomer');
-      const p=G.randomEvents;
-      if(p.filter(e=>RANDOM_EVENTS[e].item).length<itemTotal) lost++;
-      if(p.indexOf('candle_out')>=0 && p.indexOf('candle_steady')>=0) contradict++;
-      min=Math.min(min,p.length); max=Math.max(max,p.length);
-    }
-    return JSON.stringify({lost:lost, contradict:contradict, min:min, max:max});
-  })()`);
-  console.log('  INFO  池大小区间 / 异常计数', stat);
-  check('发道具事件全部入池', run(`(${stat}).lost`), '0');
-  check('矛盾灯笼不同局', run(`(${stat}).contradict`), '0');
-});
-
-/* =====================================================================
-   6. 三视角随机播放冒烟:死胡同 / 缺失场景 / 不收敛
-   ===================================================================== */
-section('10. 随机播放冒烟测试');
-for (const pov of ['newcomer', 'ayuan', 'po']) {
-  const N = pov === 'newcomer' ? 800 : 200;
+section('2. 一次性选项耗尽后仍可离开');
+guard('逐场景二次进入均有出路', () => {
   const problems = run(`(function(){
-    const bad=new Set();
-    for(let i=0;i<${N};i++){ const p=T.fuzzOnce('${pov}'); if(p) bad.add(p); }
-    return [...bad].join(' ; ');
+    const bad=[];
+    Object.keys(CHAPTER_V3).forEach(id=>{
+      /* 先按"全部一次性选项都已用过"的最坏状态构造存档 */
+      T.wipe(); G=null; startGame();
+      G.scene=id;
+      Object.keys(CHAPTER_V3).forEach(k=>(CHAPTER_V3[k].choices||[]).forEach(c=>{ if(c.once) setFlag('choice-'+c.id); }));
+      G.rite=0; G.evidence={paternal:0,marital:0,personal:0};
+      const cs=currentScenes()[id].run().choices||[];
+      if(!cs.length) bad.push(id);
+    });
+    return bad.join(',');
   })()`);
-  check(`${pov} 视角 ${N} 局`, problems || '(无异常)', '(无异常)');
-}
+  check('零选项场景', problems || '(无)', '(无)');
+});
 
-console.log(`\n${'='.repeat(60)}`);
+/* =====================================================================
+   3. 三结局可达性 —— 曾经 naming 场景根本没有入口
+   ===================================================================== */
+section('3. 三种结局定向可达');
+for (const [kind, expect] of [['return', 'ending-return'], ['marriage', 'ending-marriage'],
+                              ['loss', 'ending-loss'], ['marriage-silent', 'ending-marriage']]) {
+  guard(`${kind} 路线`, () => {
+    run(`T.hourBad.length=0; T.route('${kind}')`);
+    check(`${kind} → 结局`, run('T.ended'), expect);
+    check(`${kind} → 写入结局录`, run(`T.end('${expect}')`), 'true');
+    check(`${kind} → 时辰未回拨`, run('T.hourBad.length'), '0');
+  });
+}
+guard('照面场景在证据 >=3 时开放', () => {
+  run(`T.route('reunion')`);
+  check('未直接落到结局', run('T.ended'), 'null');
+  check('纠正称呼已生效', run('hasFlag("correctedName")'), 'true');
+  check('纠正后仪式渗透回落', run('G.rite'), '0');
+});
+
+/* =====================================================================
+   4. 门控: 证据不足时不得出现定名/照面; 足量时必须出现
+   ===================================================================== */
+section('4. 寻名进度门控');
+guard('零证据时 courtyard 不给定名', () => {
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','进入挂着白灯笼')`);
+  check('证据总数', run('T.total()'), '0');
+  check('无"定名"选项', run(`!(currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('定名')>=0))`), 'true');
+  check('无"照面"选项', run(`!(currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('轿帘后')>=0))`), 'true');
+  check('仍有出路(不锁死)', run(`currentScenes().courtyard.run().choices.length>0`), 'true');
+});
+guard('一类证据即可定名, 三类的证据才可见照面', () => {
+  run(`T.enter({ledger:false}); addEvidence('paternal',1)`);
+  check('1 类证据可定名', run(`currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('定名')>=0)`), 'true');
+  check('1 类证据不可照面', run(`!currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('轿帘后')>=0)`), 'true');
+  run(`addEvidence('marital',1); addEvidence('personal',1)`);
+  check('3 类证据可照面', run(`currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('轿帘后')>=0)`), 'true');
+});
+guard('定名前不得有零选项死路', () => {
+  check('沉默兜底始终可用', run(`currentScenes().naming.run().choices.some(c=>c.text.indexOf('替你落笔')>=0)`), 'true');
+});
+guard('同一路证据有上限,不可反复刷', () => {
+  run(`T.wipe(); G=null; startGame(); for(let i=0;i<20;i++) addEvidence('paternal',2)`);
+  check('父证封顶', run('evidenceScore("paternal")'), '5');
+  check('原始存储也被夹住(不靠读时兜底)', run('G.evidence.paternal'), '5');
+  check('证据总数封顶', run('T.total()'), '5');
+});
+guard('一次性选项用完即消失', () => {
+  run(`T.wipe(); G=null; startGame();
+       T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
+       T.tap('courtyard','去西厢'); T.tap('west-room','取走父亲的信'); T.tap('evidence-father','记住')`);
+  check('父亲的信已不可再取', run(`!currentScenes()['west-room'].run().choices.some(c=>c.text.indexOf('取走父亲的信')>=0)`), 'true');
+  check('其余两封仍可取', run(`currentScenes()['west-room'].run().choices.filter(c=>/取走夫家的信|没有抬头/.test(c.text)).length`), '2');
+  check('重复取证据不会叠加', run(`evidenceScore('paternal')`), '3');
+});
+
+/* =====================================================================
+   5. 设计契约: 不显示理智/阴气等生存数值
+   ===================================================================== */
+section('5. 隐藏状态不外泄为数值');
+guard('状态里根本没有 san/yin 字段', () => {
+  run(`T.wipe(); G=null; startGame()`);
+  check('无 san', run(`'san' in G`), 'false');
+  check('无 yin', run(`'yin' in G`), 'false');
+  check('无 truths', run(`'truths' in G`), 'false');
+});
+guard('全程画面文本不含生存数值字样', () => {
+  const hits = run(`(function(){
+    const banned=['理智','阴气','SAN','san:','点阴德'];
+    const bad=[];
+    T.wipe();
+    for(let i=0;i<120;i++){
+      G=null; startGame();
+      for(let s=0;s<60 && !T.ended;s++){
+        const sc=currentScenes()[G.scene]; if(!sc) break;
+        T.ended=null;
+        const d=sc.run();
+        const hay=(T.screen.narration+T.screen.tips.join(''));
+        banned.forEach(b=>{ if(hay.indexOf(b)>=0) bad.push(G.scene+':'+b); });
+        /* 渗透/证据绝不允许以"数字条"形式出现在正文 */
+        if(/仪式渗透\\s*\\d/.test(T.screen.narration)) bad.push(G.scene+':渗透数值裸露');
+        const cs=(d.choices||[]).filter(c=>!c.disabled); if(!cs.length) break;
+        T.pick(cs).action();
+      }
+    }
+    return [...new Set(bad)].join(' ; ');
+  })()`);
+  check('泄漏点', hits || '(无)', '(无)');
+});
+guard('仪式渗透只以氛围与措辞现身', () => {
+  run(`T.wipe(); G=null; startGame(); adjustRite(4); updateStats()`);
+  check('渗透 4 挂 rite-critical', run(`document.body.classList.contains('rite-critical')`), 'true');
+  check('渗透 4 追加替念一句', run(`currentScenes().courtyard.run().text.indexOf('class="rited"')>=0`), 'true');
+  run(`G.rite=2; updateStats()`);
+  check('渗透 2 不挂 critical', run(`document.body.classList.contains('rite-critical')`), 'false');
+  check('渗透 2 挂 rite-mid', run(`document.body.classList.contains('rite-mid')`), 'true');
+  check('渗透 2 不追加', run(`currentScenes().courtyard.run().text.indexOf('class="rited"')>=0`), 'false');
+});
+guard('结局小结只给措辞, 不给分数', () => {
+  run(`T.route('return')`);
+  const stat = run('endingStatText()');
+  check('无"X/6"式计数', /\d+\s*\/\s*\d+/.test(stat) ? stat : '(无)', '(无)');
+  check('含称呼', stat.indexOf('称呼') >= 0, 'true');
+});
+
+/* =====================================================================
+   6. 确定性: 同一状态两次渲染必须逐字相同(幻象类随机选项已废除)
+   ===================================================================== */
+section('6. 渲染确定性');
+guard('重复 run 输出一致', () => {
+  const diff = run(`(function(){
+    T.wipe(); G=null; startGame(); T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住');
+    T.tap('arrival','进入挂着白灯笼'); addEvidence('paternal',2); adjustRite(3);
+    const bad=[];
+    Object.keys(CHAPTER_V3).forEach(id=>{
+      G.scene=id;
+      const a=currentScenes()[id].run(), b=currentScenes()[id].run();
+      if(a.text!==b.text) bad.push(id+':文本');
+      if(JSON.stringify(a.choices.map(c=>c.text))!==JSON.stringify(b.choices.map(c=>c.text))) bad.push(id+':选项');
+    });
+    return bad.join(',');
+  })()`);
+  check('非确定性场景', diff || '(无)', '(无)');
+});
+
+/* =====================================================================
+   7. 称呼替换: 渗透 >=2 起, "她"必须开始被玩家自己的措辞接管
+   ===================================================================== */
+section('7. 称呼渗透');
+guard('rite 阈值前后文本不同', () => {
+  const tags = s => (s.match(/<[^>]*>/g) || []).join('|');
+  run(`T.wipe(); G=null; startGame(); addEvidence('paternal',3); G.rite=1`);
+  const low = run(`currentScenes()['evidence-father'].run().text`);
+  run(`G.rite=2`);
+  const high = run(`currentScenes()['evidence-father'].run().text`);
+  check('渗透 1 正文含裸"她"', (low.match(/她/g) || []).length, '2');
+  check('渗透 2 起被替换为周氏', (high.match(/周氏/g) || []).length >= 2, 'true');
+  check('替换后不留裸"她"', /她/.test(high), 'false');
+  check('替换不破坏 HTML 标签', tags(high), tags(low));
+  check('阈值前后文本确有改写', low !== high, 'true');
+});
+guard('dominantName 取最响的一路', () => {
+  run(`T.wipe(); G=null; startGame()`);
+  check('零证据 → 她', run('dominantName()'), '她');
+  run(`addEvidence('marital',3)`);
+  check('夫证最响 → 新妇', run('dominantName()'), '新妇');
+  run(`addEvidence('personal',4)`);
+  check('自称最响 → 鸢', run('dominantName()'), '鸢');
+  check('并列时自称优先', run(`(addEvidence('paternal',4),dominantName())`), '鸢');
+});
+
+/* =====================================================================
+   8. 重复场景差量文本
+   ===================================================================== */
+section('8. 重访差量');
+guard('first/again 文本确有不同', () => {
+  const same = run(`(function(){
+    T.wipe(); G=null; startGame();
+    const bad=[];
+    Object.keys(CHAPTER_V3).forEach(id=>{
+      G.scene=id; G.visited={};
+      const one=currentScenes()[id].run().text;
+      G.visited[id]=2;
+      const two=currentScenes()[id].run().text;
+      if(one===two) bad.push(id);
+    });
+    return bad.join(',');
+  })()`);
+  check('重访文本无变化', same || '(无)', '(无)');
+});
+
+/* =====================================================================
+   9. 时辰只可向前
+   ===================================================================== */
+section('9. 时辰单调性');
+guard('四条路线全程无回拨', () => {
+  const bad = run(`(function(){
+    const out=[];
+    ['return','marriage','loss','reunion','marriage-silent'].forEach(k=>{
+      T.hourBad.length=0;
+      try{ T.route(k); }catch(e){ out.push(k+' 抛错:'+e.message); }
+      if(T.hourBad.length) out.push(k+':'+T.hourBad.join(','));
+    });
+    return out.join(' ; ');
+  })()`);
+  check('回拨点', bad || '(无)', '(无)');
+  check('终局时辰不倒退', run('G.hour<=4'), 'true');
+});
+
+/* =====================================================================
+   10. 存档: 归一化 / 起点不覆盖 / 断点续玩
+   ===================================================================== */
+section('10. 存档与归一化');
+guard('起点不覆盖已有进度', () => {
+  run(`T.wipe(); G=null; startGame()`);
+  check('停在起点', run('G.scene'), 'arrival');
+  check('arrival 时拒绝存档', run('saveGame()'), 'false');
+  run(`G.scene='courtyard'; saveGame();`);
+  const before = run(`JSON.parse(localStorage.getItem('hongzhiyuan_save_v3')).scene`);
+  run(`G.scene='arrival'; saveGame();`);
+  check('回起点不覆盖', run(`JSON.parse(localStorage.getItem('hongzhiyuan_save_v3')).scene`), before);
+});
+guard('缺字段/脏场景的旧档可归一', () => {
+  run(`T.wipe(); localStorage.setItem('hongzhiyuan_save_v3', JSON.stringify({scene:'不存在的场景'}))`);
+  check('读脏档成功', run('loadGame()'), 'true');
+  check('非法场景回起点', run('G.scene'), 'arrival');
+  check('evidence 已补默认', run('T.total()'), '0');
+  check('rite 已补默认', run('G.rite'), '0');
+  check('version 归一', run('G.version'), '3');
+  run(`localStorage.setItem('hongzhiyuan_save_v3', JSON.stringify({scene:'west-room',rite:99,hour:-3,inventory:'x'}))`);
+  run('loadGame()');
+  check('渗透越界被夹住', run('G.rite'), '5');
+  check('时辰越界被夹住', run('G.hour'), '0');
+  check('inventory 非数组被重建', run('Array.isArray(G.inventory)'), 'true');
+  run(`localStorage.setItem('hongzhiyuan_save_v3', JSON.stringify({scene:'west-room',flags:'x',inventory:['kite','ghostItem',5]}))`);
+  run('loadGame()');
+  check('flags 类型错误被重建', run('Object.keys(G.flags).length'), '0');
+  check('未知遗物被剔除', run(`JSON.stringify(G.inventory)`), '["kite"]');
+});
+guard('断点续玩状态一致', () => {
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住');
+       T.tap('arrival','进入挂着白灯笼'); addEvidence('paternal',2); G.scene='courtyard'; saveGame();`);
+  const snap = run(`JSON.stringify({e:G.evidence,r:G.rite,h:G.hour,f:Object.keys(G.flags).sort(),i:G.inventory})`);
+  run(`G=null; loadGame();`);
+  const back = run(`JSON.stringify({e:G.evidence,r:G.rite,h:G.hour,f:Object.keys(G.flags).sort(),i:G.inventory})`);
+  check('读回与存出一致', back, snap);
+  check('读回后仍可渲染', run(`!!currentScenes()[G.scene]`), 'true');
+});
+guard('到达结局清除存档', () => {
+  run(`T.route('return')`);
+  check('结局后无存档', run('hasSave()'), 'false');
+});
+
+/* =====================================================================
+   11. 遗物: 五件皆可得且不会重复入囊
+   ===================================================================== */
+section('11. 遗物与称呼碎片');
+guard('单局集齐五件', () => {
+  run(`T.wipe(); G=null; startGame();
+       T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
+       T.tap('courtyard','是哪三条规矩'); T.tap('rules','应下规矩'); T.tap('first-call','守住');
+       T.tap('courtyard','去西厢');
+       T.tap('west-room','取走父亲的信');  T.tap('evidence-father','记住');
+       T.tap('west-room','取走夫家的信');  T.tap('evidence-husband','记住');
+       T.tap('west-room','没有抬头');      T.tap('evidence-personal','空白');
+       T.tap('west-room','合上箱子');
+       T.tap('courtyard','去东厢新房');
+       T.tap('east-room','取走纸鸢');      T.tap('kite-clue','收好');
+       T.tap('east-room','退出新房');
+       T.tap('courtyard','去后院祠堂');    T.tap('shrine-room','火盆');
+       T.tap('burning','抢回残页');
+       T.tap('shrine-room','退出祠堂')`);
+  const missing = run(`Object.keys(ITEMS).filter(k=>G.inventory.indexOf(k)<0)`);
+  check('缺失遗物', missing.length ? missing.join(',') : '(无)', '(无)');
+  check('五件不重复', run(`G.inventory.length`), run(`new Set(G.inventory).size`));
+});
+
+/* =====================================================================
+   12. 随机播放: 零选项 / 缺失场景 / 不收敛 / 结局分布
+   ===================================================================== */
+section('12. 随机播放冒烟测试');
+guard('500 局随机路线', () => {
+  const stat = runJson(`(function(){
+    const bad=new Set(), ends=new Set(); let unconv=0;
+    for(let i=0;i<500;i++){
+      const p=T.fuzzOnce();
+      if(T.ended) ends.add(T.ended);
+      if(p){ if(/未收敛/.test(p)) unconv++; else bad.add(p); }
+    }
+    return JSON.stringify({problems:[...bad].join(' ; '),unconv:unconv,ends:[...ends].sort().join(',')});
+  })()`);
+  check('异常', stat.problems || '(无)', '(无)');
+  check('未收敛局数', stat.unconv, '0');
+  check('随机也能撞到全部三结局', stat.ends, 'ending-loss,ending-marriage,ending-return');
+});
+
+console.log(`\n${'='.repeat(66)}`);
 if (failed) { console.log(`共 ${failed} 项失败`); process.exit(1); }
 console.log('全部通过');

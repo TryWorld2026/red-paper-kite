@@ -222,13 +222,15 @@ MVP 实现一章完整闭环，而不是先把全部旧剧情数值迁移。
 }
 ```
 
-第一版采用兼容层，而不是完全替换现有状态机：
+落地时放弃了兼容层，采用彻底替换（原方案曾打算保留过渡层）：
 
-- 新数据由统一场景解释器生成旧场景对象可消费的结构。
-- 保留 `G.flags`、`G.visited`、`saveGame/loadGame`。
-- 新增 `evidence`、`rite`、`transcript`，并给旧字段设置默认值。
-- 显式理智/阴气 UI 删除，但旧存档字段可暂时读取后忽略。
+- 新增 `chapter-v3.js` 场景解释器，`js/scenes.js`、`js/scenes_ayuan.js`、`js/scenes_po.js`、`js/systems.js`、`data/events.js` 全部删除。
+- 保留 `G.flags`、`G.visited`、`saveGame/loadGame` 这三件仍然成立的基础。
+- 新增 `evidence`、`rite`、`transcript`，读档时做完整类型归一。
+- 理智/阴气 UI 与旧存档字段一并移除，不做"读取后忽略"——存档键改为 `hongzhiyuan_save_v3`，v2 进度自然失效。
 - 新游戏从 `version: 3` 开始。
+
+放弃兼容层的原因：兼容层会让旧结局表、成就系统与随机事件这三套 v2 模型继续存活，而它们各自都假设了"玩家有生存数值"这一已被否定的前提。留着它们，状态契约和测试都会持续被污染。
 
 ## 11. 文本异变合同
 
