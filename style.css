@@ -118,9 +118,21 @@ body::after{
 .inventory .inv-empty{font-size:13px;color:rgba(80,40,20,.45);letter-spacing:2px;}
 .inv-item{
   font-size:13px;color:var(--ink);background:rgba(154,123,46,.15);border:1px solid rgba(154,123,46,.4);
-  padding:3px 10px;border-radius:2px;letter-spacing:1px;cursor:help;transition:.2s;
+  padding:3px 10px;border-radius:2px;letter-spacing:1px;cursor:pointer;transition:.2s;
 }
 .inv-item:hover{background:rgba(154,123,46,.3);border-color:var(--gold);}
+
+/* 被仪式改过称呼的界面件：不加闪烁，只让它与诚实时不同色 */
+.topbar .tbtn.eroded{color:var(--vermilion-deep);border-color:rgba(160,24,24,.65);}
+
+/* 遗物原文：玩家回看核对的地方 */
+.relic-read{
+  margin:16px auto 0;max-width:640px;padding:14px 18px;cursor:pointer;
+  background:rgba(255,252,240,.5);border:1px solid rgba(154,123,46,.5);border-left:3px solid var(--vermilion);
+  font-size:15px;line-height:1.9;
+}
+.relic-read .relic-name{font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;}
+.relic-read .relic-body{color:var(--ink);}
 
 /* ============ 开始页 ============ */
 .menu-screen{

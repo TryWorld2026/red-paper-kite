@@ -27,6 +27,7 @@
     <div class="narration" id="narration"></div>
     <div id="tip-area"></div>
     <div class="choices" id="choices"></div>
+    <div class="relic-read hidden" id="relic-read"></div>
   </div>
 
   <!-- 遗物栏 -->
@@ -37,9 +38,9 @@
 
   <!-- 开始页 -->
   <div class="menu-screen" id="menu-screen">
-    <div class="menu-title">红纸鸢</div>
-    <div class="menu-sub">归 名</div>
-    <div class="menu-desc">
+    <div class="menu-title" id="menu-title">红纸鸢</div>
+    <div class="menu-sub" id="menu-sub">归 名</div>
+    <div class="menu-desc" id="menu-desc">
       民国二十三年，浙东槐阴村。<br>
       你来迎亲，却没有人肯告诉你新娘在哪里。<br><br>
       <span class="menu-hazard">—— 找回她，你才能离村。而规矩说，别提她的名字。</span>
@@ -98,6 +99,13 @@ el('btn-menu').onclick=()=>{ if(confirm('返回主菜单？当前进度将自动
 
 // 图鉴关闭
 el('gallery-close').onclick=()=>{ el('gallery-screen').classList.add('hidden'); Sound.click(); };
+
+// 遗物回看：遗物 DOM 每次渲染重建，故用事件委托
+el('inventory').addEventListener('click',e=>{
+  const span=e.target.closest?e.target.closest('.inv-item'):null;
+  if(span&&span.dataset.item) readRelic(span.dataset.item);
+});
+el('relic-read').addEventListener('click',()=>{ el('relic-read').classList.add('hidden'); });
 
 // 结局页按钮
 el('ending-restart').onclick=()=>{ el('ending-screen').classList.add('hidden'); showMenu(); };

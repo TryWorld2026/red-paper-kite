@@ -225,7 +225,7 @@ const CHAPTER_V3 = {
     textFn: marginsText,
     noErode:true,   /* 证据面必须永远诚实，否则"可回看验证"不成立 */
     choices:[
-      { id:'back', label:'把婚书合上，回中庭', next:'courtyard' }
+      { id:'back', label:'把婚书合上，回中庭', next:'courtyard', marksRows:true }
     ]
   },
 
@@ -451,7 +451,7 @@ const MARGIN_BOOK=[
   { flag:'watchedRitual',       line:'有一回你站着听她把礼词念完，没有打断。' },
   { flag:'questionedRules',     line:'你问过她为什么失踪。喜婆没有回答。' },
 ];
-function marginsText(){
+function marginLines(){
   const lines=MARGIN_BOOK.filter(e=>hasFlag(e.flag)).map(e=>e.line);
   Object.keys(G.flags).forEach(k=>{
     if(k.indexOf('usurped-')!==0) return;
@@ -459,15 +459,27 @@ function marginsText(){
     const where=(CHAPTER_V3[at[0]]&&CHAPTER_V3[at[0]].title)||'礼成之前';
     lines.push(where+'：那一笔，不是你落的。');
   });
-  if(!lines.length) lines.push('纸上干净。你还没有做过任何一件需要向你本人解释的事。');
-  lines.push(usurpCount()
-    ? '已经有一笔不是你落下的了。你把它核对出来了，它就不会消失。'
-    : '到目前为止，纸上的每一笔都还认得是你。');
+  return lines;
+}
+/* 只读不写：渲染期间改状态会让同一状态两次渲染不一致（契约第 2 条） */
+function marginsText(){
+  const lines=marginLines();
+  const clean=!lines.length;
+  let tail;
+  if(clean) tail='这些边角还空着。你没有做过任何一件需要向你本人解释的事。';
+  else if(usurpCount()) tail='已经有一笔不是你落下的了。你把它核对出来，它就再也擦不掉。';
+  else tail='这些笔笔都对得上你。至少目前，还没有哪一笔不是你落的。';
+  /* 重访不许空口宣称"又多出一行"：与合上婚书时记下的行数真比对才敢说。 */
+  const seen=G.flags['margins-rows'];
+  const revisit=(G.visited['margins']||0)>1 && seen!==undefined
+    ? (lines.length>seen
+        ? '<br><br><span class="ghost">你数了一遍：比方才合上婚书时多出 '+(lines.length-seen)+' 行。你并没有添过字。</span>'
+        : '<br><br><span class="ghost">行数没有变。你什么也没做，纸上也就不再长。</span>')
+    : '';
   return '<span class="em">婚书背面的边角空白，自己写满了小字。</span><br><br>'
-       + lines.join('<br>')
-       + ((G.visited['margins']||0)>1
-           ? '<br><br><span class="ghost">你数了一遍。行数比方才那一遍又多出一行，而你并没有添过字。</span>'
-           : '<br><br><span class="ghost">这些字不是你写的。但每一件，你都做过。</span>');
+       + (clean?tail:lines.join('<br>'))
+       + (clean?'':'<br><br><span class="ghost">'+tail+'</span>')
+       + revisit;
 }
 function compileScene(id){
   const d=CHAPTER_V3[id];
@@ -507,6 +519,8 @@ function compileScene(id){
             setFlag('anchorFall');
             recordTranscript('usurp', id+':'+choice.id);
           }
+          /* 合上婚书时记下核对到的行数 —— 写状态发生在玩家动作里，不在渲染里 */
+          if(choice.marksRows) setFlag('margins-rows', marginLines().length);
           if(ENDINGS_V3[choice.next]) reachEnding(choice.next);
           else goTo(choice.next);
         }

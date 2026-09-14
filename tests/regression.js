@@ -493,6 +493,9 @@ guard('first/again 文本确有不同', () => {
     T.wipe(); G=null; startGame();
     const bad=[];
     Object.keys(CHAPTER_V3).forEach(id=>{
+      /* textFn 场景(账页)的文案完全由状态推导, 本就没有 first/again 一对;
+         它的重访差量靠"合上婚书时记下的行数基线", 只能走真实路径验证 —— 见第 13 节。 */
+      if(CHAPTER_V3[id].textFn) return;
       G.scene=id; G.visited={};
       const one=currentScenes()[id].run().text;
       G.visited[id]=2;
@@ -666,16 +669,27 @@ guard('账页永远诚实且必有出口', () => {
   check('账页含已犯之违规', t.indexOf('门外叫了一声')>=0, 'true');
   check('出口始终可用', run(`T.has('margins','back')`), 'true');
 });
-guard('每条违规都在账上留一行, 且重访时行数增加', () => {
+guard('每条违规都在账上留一行, 且重访比对真认行数', () => {
   run(`T.wipe(); G=null; startGame(); G.scene='margins'`);
   const empty = run(`currentScenes().margins.run().text`);
-  check('干净时不虚构罪证', empty.indexOf('纸上干净')>=0, 'true');
+  check('干净时不虚构罪证', empty.indexOf('这些边角还空着')>=0, 'true');
+  check('干净时不谎称有字', empty.indexOf('不是你写')>=0, 'false');
   run(`setFlag('liftedVeil'); setFlag('burnedMarriagePaper')`);
   const two = run(`currentScenes().margins.run().text`);
   check('掀帘入账', two.indexOf('轿帘')>=0, 'true');
   check('焚书入账', two.indexOf('烧过')>=0, 'true');
-  run(`G.visited['margins']=2`);
-  check('重访提示行数变多', run(`currentScenes().margins.run().text.indexOf('又多出一行')>=0`), 'true');
+  check('未比对过就不谎称变多', two.indexOf('多出')>=0, 'false');
+  /* 真走一遍：进账页 → 合上落基线 → 再违规 → 再进账页 */
+  run(`T.tap('courtyard','margins')`);
+  check('首访不谎称变多', run(`currentScenes().margins.run().text.indexOf('多出')>=0`), 'false');
+  run(`T.tap('margins','back')`);
+  check('合上时记下 2 行', run(`G.flags['margins-rows']`), '2');
+  run(`setFlag('answeredName')`);
+  run(`T.tap('courtyard','margins')`);
+  check('再进账页报出多出的行数', run(`currentScenes().margins.run().text.indexOf('多出 1 行')>=0`), 'true');
+  run(`T.tap('margins','back')`);
+  run(`T.tap('courtyard','margins')`);
+  check('什么都没做则明说没变', run(`currentScenes().margins.run().text.indexOf('行数没有变')>=0`), 'true');
 });
 
 /* =====================================================================
@@ -809,6 +823,28 @@ guard('500 局随机路线', () => {
   check('异常', stat.problems || '(无)', '(无)');
   check('未收敛局数', stat.unconv, '0');
   check('随机也能撞到全部三结局', stat.ends, 'ending-loss,ending-marriage,ending-return');
+});
+
+/* =====================================================================
+   18. DOM 契约: 脚本要改的每个节点必须真的存在于页面里
+   ===================================================================== */
+section('18. DOM 契约');
+guard('界面侵蚀不会改到空气', () => {
+  /* 桩的 getElementById 会凭空造元素, 所以"引用了页面里不存在的 id"
+     这类 bug 在逻辑测试里永远绿 —— 锚点失守就因此静默失效过一次。 */
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const present = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  const used = new Set();
+  for (const rel of ['js/core.js', 'js/chapter-v3.js', 'js/items.js', 'index.html']) {
+    const s = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    [...s.matchAll(/(?:\bel|document\.getElementById)\(\s*'([^']+)'\s*\)/g)].forEach(m => used.add(m[1]));
+  }
+  /* 界面侵蚀表里的 id 是动态取的, 正则扫不到, 单独并入 */
+  run('G=freshState()');
+  run('updateStats()');
+  JSON.parse(run(`JSON.stringify(Object.keys(TOPBAR_HONEST))`)).forEach(id => used.add(id));
+  const missing = [...used].filter(id => !present.has(id)).sort();
+  check('页面里不存在的引用 id', missing.length ? missing.join(',') : '(无)', '(无)');
 });
 
 console.log(`\n${'='.repeat(66)}`);
