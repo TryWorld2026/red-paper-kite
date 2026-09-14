@@ -886,6 +886,23 @@ guard('500 局随机路线', () => {
    18. DOM 契约与无障碍外壳
    ===================================================================== */
 section('18. DOM 契约与无障碍');
+guard('hidden 类必须真的能隐藏', () => {
+  /* 本轮新增的 .relic-read.hidden 因 CSS 无对应规则而一直占位显示成空白框。
+     这类缺陷逻辑测试永远测不到, 只能拿真实 CSS 对账。 */
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const css  = fs.readFileSync(path.join(ROOT, 'style.css'), 'utf8');
+  if (/^\.hidden\s*\{[^}]*display:\s*none/m.test(css)) {
+    check('通用 .hidden 规则', '已定义(全部生效)', '已定义(全部生效)');
+    return;
+  }
+  const classes = new Set();
+  [...html.matchAll(/class="([^"]*\bhidden\b[^"]*)"/g)].forEach(m => {
+    m[1].split(/\s+/).filter(c => c && c !== 'hidden').forEach(c => classes.add(c));
+  });
+  const uncovered = [...classes].filter(c =>
+    !(new RegExp('\\.' + c + '\\.hidden\\s*\\{[^}]*display:\\s*none', 'm').test(css)));
+  check('缺 .hidden 规则的类', uncovered.length ? uncovered.sort().join(',') : '(无)', '(无)');
+});
 guard('界面侵蚀不会改到空气', () => {
   /* 桩的 getElementById 会凭空造元素, 所以"引用了页面里不存在的 id"
      这类 bug 在逻辑测试里永远绿 —— 锚点失守就因此静默失效过一次。 */

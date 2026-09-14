@@ -264,7 +264,6 @@ function reachEnding(endId){
   el('ending-name').textContent=e.name;
   el('ending-text').innerHTML=e.text;
   el('ending-stat').innerHTML=endingStatText();
-  el('ending-unlock').classList.add('hidden');
   scr.classList.remove('hidden');
   if(e.type==='death'){ Sound.death(); document.body.classList.add('deathflash'); setTimeout(()=>document.body.classList.remove('deathflash'),600); }
   else if(e.type==='good'){ Sound.reveal(); }

@@ -103,6 +103,8 @@ body::after{
 .choice::before{content:"◆ ";color:var(--vermilion);}
 .choice:hover{background:rgba(160,24,24,.1);border-color:var(--vermilion);color:var(--vermilion-deep);transform:translateX(3px);}
 .choice.disabled{opacity:.4;cursor:not-allowed;}
+/* ◆=可行、◇=危险；锁门项既不可行也不危险，不许借用 ◆ 骗玩家去点 */
+.choice.disabled::before{content:"— ";color:var(--ink-soft);}
 .choice.disabled:hover{transform:none;background:rgba(232,220,192,.7);color:var(--ink);border-color:rgba(80,40,20,.35);}
 .choice .cost{float:right;font-size:13px;color:var(--ink-soft);}
 .choice.mood-danger{color:var(--vermilion-deep);border-style:dashed;font-style:italic;}
@@ -131,6 +133,7 @@ body::after{
   background:rgba(255,252,240,.5);border:1px solid rgba(154,123,46,.5);border-left:3px solid var(--vermilion);
   font-size:15px;line-height:1.9;
 }
+.relic-read.hidden{display:none;}   /* .hidden 原本只给三个 screen 类定义过 */
 .relic-read .relic-name{font-size:13px;letter-spacing:2px;color:var(--gold);margin-bottom:6px;}
 .relic-read .relic-body{color:var(--ink);}
 
@@ -191,7 +194,6 @@ body::after{
   color:rgba(232,220,192,.85);margin-bottom:20px;text-indent:2em;
 }
 .ending-stat{font-size:13px;color:rgba(232,220,192,.5);letter-spacing:2px;margin-bottom:12px;}
-.ending-unlock{font-size:14px;color:var(--gold);letter-spacing:2px;margin-bottom:30px;text-align:center;}
 .ending-btn{
   font-family:inherit;font-size:17px;letter-spacing:5px;color:var(--paper);
   background:none;border:1px solid rgba(232,220,192,.4);padding:10px 40px;cursor:pointer;margin:6px;transition:.2s;
