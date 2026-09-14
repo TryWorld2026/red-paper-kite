@@ -53,6 +53,7 @@ const CHAPTER_V3 = {
       { id:'east', label:'去东厢新房', next:'east-room' },
       { id:'shrine', label:'去后院祠堂', next:'shrine-room' },
       { id:'stele', label:'退回村口的石碑前', next:'arrival' },
+      { id:'margins', label:'低头看你自己的婚书', next:'margins' },
       { id:'reunion', label:'轿帘后传来纸摩擦的声音', next:'reunion', condition:{evidenceTotal:3} },
       { id:'naming', label:'天将明，走到牌位前替她定名', next:'naming', condition:{evidenceTotal:1} }
     ]
@@ -65,8 +66,8 @@ const CHAPTER_V3 = {
       again:'三条规矩被你复述过一遍后，忽然变得像你自己想出来的。<br><br>你不确定刚才是她在说，还是你在替她说。'
     },
     choices:[
-      { id:'agree', label:'应下规矩，换取入宅', next:'first-call', effects:{ flag:'acceptedRules', rite:1 } },
-      { id:'refuse', label:'先弄清她为何失踪', next:'courtyard', effects:{ flag:'questionedRules' } }
+      { id:'agree', label:'应下规矩，换取入宅', next:'first-call', effects:{ flag:'acceptedRules', flags:['rulesSeen','warnNoAnswer','warnNoNaming'], rite:1 } },
+      { id:'refuse', label:'先弄清她为何失踪', next:'courtyard', effects:{ flag:'questionedRules', flags:['rulesSeen'] } }
     ]
   },
 
@@ -105,7 +106,7 @@ const CHAPTER_V3 = {
     },
     choices:[
       { id:'take-father', label:'取走父亲的信', next:'evidence-father', once:true, effects:{ evidence:{paternal:2}, item:'fatherLetter' } },
-      { id:'take-husband', label:'取走夫家的信', next:'evidence-husband', once:true, effects:{ evidence:{marital:2}, item:'marriageLetter' } },
+      { id:'take-husband', label:'取走夫家的信', next:'evidence-husband', once:true, effects:{ evidence:{marital:2}, item:'marriageLetter', flag:'warnDeputy' } },
       { id:'take-personal', label:'取走没有抬头的那页', next:'evidence-personal', once:true, effects:{ evidence:{personal:2}, item:'unfinishedLetter', flag:'sawSelfName' } },
       { id:'leave', label:'合上箱子', next:'courtyard' }
     ]
@@ -219,10 +220,23 @@ const CHAPTER_V3 = {
     ]
   },
 
+  margins:{
+    title:'婚书边角 · 你自己的账',
+    textFn: marginsText,
+    noErode:true,   /* 证据面必须永远诚实，否则"可回看验证"不成立 */
+    choices:[
+      { id:'back', label:'把婚书合上，回中庭', next:'courtyard' }
+    ]
+  },
+
   reunion:{
     title:'子时 · 第一次照面',
     text:{
-      first:'轿中人抬起头。她的五官还是空的，像没干透的纸。<br><br><span class="whisper">“良辰已至。恭请——”</span><br><br>她只会念礼词。念到“新妇”时顿了一下，那是九十年来，她第一次自己停下来。',
+      first:[
+        { when:{flag:'answeredName'},
+          text:'轿中人抬起头。她的五官还是空的，像没干透的纸。<br><br>她没有念礼词。她开口叫的，是<span class="em">你的名字</span>——用的是你在门外那一声的语调。<br><br>那一声你只应过一次。她记到今天。' },
+        { text:'轿中人抬起头。她的五官还是空的，像没干透的纸。<br><br><span class="whisper">“良辰已至。恭请——”</span><br><br>她只会念礼词。念到“新妇”时顿了一下，那是九十年来，她第一次自己停下来。' }
+      ],
       again:[
         { when:{flag:'correctedName'},
           text:'她看见你，又把礼词从头念起。<br><br>念到你纠正过的那一处，仍会顿住。' },
@@ -232,15 +246,21 @@ const CHAPTER_V3 = {
       ]
     },
     choices:[
-      { id:'correct', label:'纠正称呼：你不只是“新妇”', next:'courtyard', once:true, effects:{ evidence:{personal:1}, rite:-1, flag:'correctedName' } },
-      { id:'watch', label:'沉默，看她把礼词念完', next:'courtyard', effects:{ rite:1, flag:'watchedRitual' } }
+      { id:'correct', label:'纠正称呼：你不只是“新妇”', next:'courtyard', once:true, spoken:true,
+        effects:{ evidence:{personal:1}, rite:-1, flag:'correctedName' } },
+      { id:'watch', label:'沉默，看她把礼词念完', next:'courtyard', effects:{ rite:1, flag:'watchedRitual' },
+        usurp:{ minRite:2, warn:['acceptedRules','warnDeputy'] } }
     ]
   },
 
   naming:{
     title:'寅时 · 礼成前',
     text:{
-      first:'院门终于打开，轿帘却自行升起。<br><br>轿中无人。喜婆把你领到牌位前：「说出她的名字，她便归你找到之处。」<br><br>三类证据在你脑中同时作响。',
+      first:[
+        { when:{flag:'liftedVeil'},
+          text:'院门终于打开。轿帘没有再动——你掀过它一次，它就不必再自行升起。<br><br>喜婆把你领到牌位前。空格上已经有一划，墨迹未干，笔锋是从右向左来的。<br><br><span class="ghost">「你已经起过笔了。」她说，「剩下的，接着写就是。」</span>' },
+        { text:'院门终于打开，轿帘却自行升起。<br><br>轿中无人。喜婆把你领到牌位前：「说出她的名字，她便归你找到之处。」<br><br>三类证据在你脑中同时作响。' }
+      ],
       again:'牌位空格已填了一半。再迟疑，名字就会由别人替你写完。'
     },
     choices:[
@@ -248,12 +268,14 @@ const CHAPTER_V3 = {
       { id:'marital', label:'称她为陈门新妇，礼成', next:'ending-marriage', condition:{minEvidence:{marital:2}} },
       { id:'personal', label:'只念她自写的那个字：鸢', next:'loss-question', condition:{minEvidence:{personal:2}} },
       { id:'not-yet', label:'笔还空着。退回中庭，再去找她的名字', next:'courtyard' },
-      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger' }
+      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger',
+        usurp:{ minRite:2, warn:['warnDeputy','acceptedRules'] } }
     ]
   },
 
   'loss-question':{
     title:'她第一次拒绝礼词',
+    noErode:true,   /* 话头交还给玩家：这一处必须用他自己的口说 */
     text:{
       first:'你只念出那个“鸢”字。牌位裂开，院门却向后缩回黑暗。<br><br>轿中人终于不再念礼词。她第一次问：<br><span class="em">“既然记得我，你为什么还要娶我？”</span><br><br>你这才发觉，自己一路握着的，是那封写有你名字的婚书。',
       again:'她又问了一遍。这一次，用的是你自己的声音。'
@@ -284,7 +306,7 @@ const ENDINGS_V3 = {
 
 /* 时辰按叙事节点单调推进,避免"寅时倒退回子时" */
 const HOUR_OF = {
-  'arrival':0, 'gate-ledger':0, 'courtyard':1, 'rules':1, 'first-call':1, 'answered-call':2,
+  'arrival':0, 'gate-ledger':0, 'courtyard':1, 'rules':1, 'first-call':1, 'answered-call':2, 'margins':1,
   'west-room':1, 'evidence-father':1, 'evidence-husband':1, 'evidence-personal':1,
   'east-room':2, 'open-veil':2, 'kite-clue':2,
   'shrine-room':2, 'tablet-talk':3, 'burning':3,
@@ -318,6 +340,7 @@ function endingStatText(){
 function applyEffects(fx, guardKey){
   if(!fx) return;
   if(fx.flag) setFlag(fx.flag);
+  if(isArr(fx.flags)) fx.flags.forEach(setFlag);
   if(fx.item) giveItem(fx.item);
   if(fx.rite || fx.evidence){
     const spentFlag='fx-spent-'+guardKey;
@@ -363,28 +386,127 @@ function pickText(variant){
 function substituteName(text){
   return G.rite>=2 ? text.replace(/她/g, dominantName()) : text;
 }
+/* ---------- 作者权侵蚀 ----------
+   本作真正被夺走的是"谁在说话"。侵蚀只改写字的归属：
+   绝不改动 choice.id / condition / next / 结局门控，因此玩家永远
+   做着自己原本要做的选择 —— 变的只是这句话由谁开口。
+   替换表全部由 rite 档位与 flags 决定，无任何随机（契约第 2 条）。 */
+const ERODE_VOICE='新郎';
+/* 仪式只接管"由游戏替玩家叙述"的字，不接管任何角色开口说出的话。
+   因此引号区间（「」与弯引号）内的第二人称一律放过：
+   "你不只是新妇"是对她说的，"我把你的失踪…"是玩家自白，都不许被改写。 */
+const QUOTED=/「[^」]*」|“[^”]*”/g;
+function outsideQuotes(t, fn){
+  let out='', last=0, m;
+  QUOTED.lastIndex=0;
+  while((m=QUOTED.exec(t))){
+    out+=fn(t.slice(last,m.index))+m[0];
+    last=m.index+m[0].length;
+  }
+  return out+fn(t.slice(last));
+}
+/* 正文：渗透满格后，叙述连"你"都不再给玩家（rite>=5）。
+   选项：渗透 2 起，玩家连想做的事都要用礼数的口吻念出来（"你"→"新郎"）。
+   两者都只作用于引号之外的叙述部分。 */
+function erodeVoice(t, isLabel){
+  if(!((isLabel && G.rite>=2) || (!isLabel && G.rite>=5))) return t;
+  return outsideQuotes(t, s=>s.replace(/你/g, ERODE_VOICE));
+}
+/* 正文：先做称呼替换（她→玩家此刻对她的称呼），再接管人称 */
+function erodeText(text){
+  return erodeVoice(substituteName(text), false);
+}
+function erodeLabel(choice){
+  /* spoken: 这句话是玩家亲口对别人说的，不是游戏替玩家叙述。
+     中文"你"两种用法同形，引号判不出来，故显式标注。 */
+  if(choice.spoken) return choice.label;
+  return erodeVoice(choice.label, true);
+}
+/* ---------- 节点剥夺（全作唯一的"夺权"，门槛极高） ----------
+   必须由两条可识别预警铺满、且仪式渗透达标才生效（契约第 7 条）。
+   生效时选项仍显示为玩家本意，只是这一笔由仪式落下的 —— 并在
+   margins 回看账上留一条不可抵赖的证据。 */
+function warningsMet(choice){
+  const u=choice && choice.usurp;
+  if(!u || !u.warn) return 0;
+  return u.warn.filter(f=>hasFlag(f)).length;
+}
+function usurpActive(choice){
+  const u=choice && choice.usurp;
+  if(!u) return false;
+  if(u.minRite!=null && G.rite<u.minRite) return false;
+  return warningsMet(choice)>=2;
+}
+function usurpCount(){
+  return Object.keys(G.flags).filter(k=>k.indexOf('usurped-')===0).length;
+}
+/* 婚书边角：本作唯一由玩家自己核对"我到底做过什么"的账页。
+   契约第 2 条要求每次异常都能回看验证 —— 违规、被代笔、渗透跨档，
+   都必须在这里落成一行可核对的字。全部读自 flags，无随机。 */
+const MARGIN_BOOK=[
+  { flag:'answeredName',        line:'亥时：门外叫了一声，你应了。' },
+  { flag:'liftedVeil',          line:'子时之前：轿帘落下过，你揭了。' },
+  { flag:'burnedMarriagePaper', line:'祠堂：你烧过一次婚书。夫家的名字没了，“新妇”还在。' },
+  { flag:'correctedName',       line:'你纠正过一回称呼：她不只是“新妇”。' },
+  { flag:'watchedRitual',       line:'有一回你站着听她把礼词念完，没有打断。' },
+  { flag:'questionedRules',     line:'你问过她为什么失踪。喜婆没有回答。' },
+];
+function marginsText(){
+  const lines=MARGIN_BOOK.filter(e=>hasFlag(e.flag)).map(e=>e.line);
+  Object.keys(G.flags).forEach(k=>{
+    if(k.indexOf('usurped-')!==0) return;
+    const at=k.slice('usurped-'.length).split(':');
+    const where=(CHAPTER_V3[at[0]]&&CHAPTER_V3[at[0]].title)||'礼成之前';
+    lines.push(where+'：那一笔，不是你落的。');
+  });
+  if(!lines.length) lines.push('纸上干净。你还没有做过任何一件需要向你本人解释的事。');
+  lines.push(usurpCount()
+    ? '已经有一笔不是你落下的了。你把它核对出来了，它就不会消失。'
+    : '到目前为止，纸上的每一笔都还认得是你。');
+  return '<span class="em">婚书背面的边角空白，自己写满了小字。</span><br><br>'
+       + lines.join('<br>')
+       + ((G.visited['margins']||0)>1
+           ? '<br><br><span class="ghost">你数了一遍。行数比方才那一遍又多出一行，而你并没有添过字。</span>'
+           : '<br><br><span class="ghost">这些字不是你写的。但每一件，你都做过。</span>');
+}
 function compileScene(id){
   const d=CHAPTER_V3[id];
   if(!d) return null;
   return {
     title:d.title,
     run(){
-      const again=(G.visited[id]||0)>1;
-      const raw = again ? (d.text.again!=null ? d.text.again : d.text.first) : d.text.first;
-      let text = pickText(raw);
-      if(text==null) throw new Error('场景「'+id+'」的文案变体没有无条件的兜底项');
-      text=substituteName(text);
-      if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';
+      let text;
+      if(d.textFn){
+        text=d.textFn();
+      }else{
+        const again=(G.visited[id]||0)>1;
+        const raw = again ? (d.text.again!=null ? d.text.again : d.text.first) : d.text.first;
+        text = pickText(raw);
+        if(text==null) throw new Error('场景「'+id+'」的文案变体没有无条件的兜底项');
+      }
+      /* noErode：这一处由它自己的声音说话 —— 回看账页只摆事实，
+         失讳要玩家用自己的口认账，仪式连旁白都不许加。 */
+      if(!d.noErode){
+        text=erodeText(text);
+        /* 追加必须在替换之后：否则替换会替追加句掩盖掉误写的裸"她"，
+           那条契约断言就成了永远抓不到错的正则。 */
+        if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';
+      }
       const choices=(d.choices||[]).filter(choiceAvailable).map(choice=>({
         /* id 与 rawLabel 稳定: 侵蚀只改写 text, 测试按 id 定位而非按文案 */
         id:choice.id,
         rawLabel:choice.label,
-        text:choice.label,
+        text:d.noErode?choice.label:erodeLabel(choice),
         mood:choice.mood||(/禁忌|违反|沉默/.test(choice.label)?'danger':null),
         action(){
           if(choice.once) setFlag('choice-'+choice.id);
           applyEffects(choice.effects, id+':'+choice.id);
           recordTranscript('choice',choice.id);
+          if(usurpActive(choice)){
+            setFlag('usurped-'+id+':'+choice.id);
+            setFlag('anchorFall');
+            recordTranscript('usurp', id+':'+choice.id);
+          }
           if(ENDINGS_V3[choice.next]) reachEnding(choice.next);
           else goTo(choice.next);
         }

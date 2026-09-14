@@ -50,8 +50,10 @@ const MUTANTS = [
     id: 'C-死路-定名去掉沉默兜底',
     file: 'js/chapter-v3.js',
     desc: '让"喜婆替你落笔"永不可得。注：随机播放已不再报 —— naming 有了退路后 fuzzer 能自行脱身, 只有定向路线会撞穿',
-    from: `{ id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger' }`,
-    to: `{ id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', condition:{flag:'neverAchievedFlag'} }`,
+    from: `      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger',
+        usurp:{ minRite:2, warn:['warnDeputy','acceptedRules'] } }`,
+    to: `      { id:'let-them', label:'沉默。喜婆替你落笔', next:'ending-marriage', mood:'danger',
+        condition:{flag:'neverAchievedFlag'} }`,
     expect: ['3.', '4.'],
   },
 
@@ -131,7 +133,7 @@ const MUTANTS = [
     desc: '还原成 G.hour=h —— 从子时房退回中庭就会把钟拨回去',
     from: `function advanceHourTo(h){ if(h>G.hour) G.hour=Math.max(0,Math.min(4,h)); }`,
     to: `function advanceHourTo(h){ G.hour=Math.max(0,Math.min(4,h)); }`,
-    expect: ['9.', '12.'],
+    expect: ['3.', '4.', '9.', '17.'],
   },
   {
     id: 'O-文本-重访差量失效',
@@ -148,7 +150,7 @@ const MUTANTS = [
     from: `          if(ENDINGS_V3[choice.next]) reachEnding(choice.next);
           else goTo(choice.next);`,
     to: `          goTo(choice.next);`,
-    expect: ['3.', '12.'],
+    expect: ['3.', '4.', '10.', '14.', '16.', '17.'],
   },
   {
     id: 'Q-结局-不再写入结局录',
@@ -229,6 +231,118 @@ const MUTANTS = [
 `,
     to: ``,
     expect: ['1.'],
+  },
+
+  /* ---- 第三轮：作者权侵蚀 / 回看账 / 节点剥夺 / 界面分层 ---- */
+  {
+    id: 'Z1-侵蚀-措辞改为随机驱动',
+    file: 'js/chapter-v3.js',
+    desc: '往接管规则里注入 Math.random —— 违反"异变只能来自确定状态"的契约',
+    from: `  return outsideQuotes(t, s=>s.replace(/你/g, ERODE_VOICE));`,
+    to: `  if(Math.random()<0.5) return outsideQuotes(t, s=>s.replace(/你/g, ERODE_VOICE));
+  return t;`,
+    expect: ['6.', '12.'],
+  },
+  {
+    id: 'Z2-侵蚀-选项措辞不再被接管',
+    file: 'js/chapter-v3.js',
+    desc: 'erodeLabel 直接原样返回 —— 恐怖机制静默失效',
+    from: `  if(choice.spoken) return choice.label;
+  return erodeVoice(choice.label, true);`,
+    to: `  return choice.label;`,
+    expect: ['12.'],
+  },
+  {
+    id: 'Z3-侵蚀-吞掉玩家说出口的话',
+    file: 'js/chapter-v3.js',
+    desc: '去掉 spoken 例外 —— "你不只是新妇"会被改成"新郎不只是新妇"',
+    from: `  if(choice.spoken) return choice.label;`,
+    to: `  /* spoken 例外失效 */`,
+    expect: ['12.'],
+  },
+  {
+    id: 'Z4-侵蚀-破坏了 HTML 标签',
+    file: 'js/chapter-v3.js',
+    desc: '把替换目标写成含标签片段的串, 检验标签守卫真的会红',
+    from: `  return outsideQuotes(t, s=>s.replace(/你/g, ERODE_VOICE));`,
+    to: `  return outsideQuotes(t, s=>s.replace(/你/g, '<span>新郎'));`,
+    expect: ['12.'],
+  },
+  {
+    id: 'Z5-剥夺-不再要求两条预警',
+    file: 'js/chapter-v3.js',
+    desc: '门槛降为 0 —— 无预警即夺权, 违反契约第 7 条',
+    from: `  return warningsMet(choice)>=2;`,
+    to: `  return true;`,
+    expect: ['14.'],
+  },
+  {
+    id: 'Z6-剥夺-不再看渗透档位',
+    file: 'js/chapter-v3.js',
+    from: `  if(u.minRite!=null && G.rite<u.minRite) return false;`,
+    to: `  /* 渗透档位不再参与判定 */`,
+    expect: ['14.'],
+  },
+  {
+    id: 'Z7-剥夺-代笔不留证据',
+    file: 'js/chapter-v3.js',
+    desc: '删掉 usurped 记账与锚点标记 —— 玩家无从回看核对',
+    from: `            setFlag('usurped-'+id+':'+choice.id);
+            setFlag('anchorFall');
+            recordTranscript('usurp', id+':'+choice.id);`,
+    to: `            /* 代笔不留痕 */`,
+    expect: ['14.'],
+  },
+  {
+    id: 'Z8-回看-账页自己也被侵蚀',
+    file: 'js/chapter-v3.js',
+    desc: '去掉 margins 的 noErode —— 证据面被改写就等于没有证据',
+    from: `    noErode:true,   /* 证据面必须永远诚实，否则"可回看验证"不成立 */`,
+    to: `    /* 账页也交给仪式措辞 */`,
+    expect: ['13.'],
+  },
+  {
+    id: 'Z9-界面-改字时顺手清了处理函数',
+    file: 'js/core.js',
+    desc: '顶栏换称呼时把 onclick 一起清掉 —— 玩家失去存档与退路',
+    from: `    b.textContent = deep?TOPBAR_ERODED[id]:TOPBAR_HONEST[id];`,
+    to: `    const eTxt=TOPBAR_ERODED[id], hTxt=TOPBAR_HONEST[id];
+    b.textContent = deep?eTxt:hTxt;
+    if(deep) b.onclick=null;`,
+    expect: ['15.'],
+  },
+  {
+    id: 'ZA-界面-锚点提前失守',
+    file: 'js/core.js',
+    desc: '渗透 1 就改主菜单 —— 锚点从未立住, 异常变成背景噪音',
+    from: `function chromeEroded(){ return !!G && (G.rite>=4 || hasFlag('anchorFall')); }`,
+    to: `function chromeEroded(){ return !!G && (G.rite>=1 || hasFlag('anchorFall')); }`,
+    expect: ['15.'],
+  },
+  {
+    id: 'ZB-界面-锚点失守是永久污染',
+    file: 'js/core.js',
+    desc: '改成只写不清: 新开一局菜单仍是失守文案',
+    from: `  const src=fell?MENU_FALL:MENU_HONEST;
+  if(el('menu-title')) el('menu-title').textContent=src.title;`,
+    to: `  const src=fell?MENU_FALL:MENU_HONEST;
+  if(el('menu-title') && fell) el('menu-title').textContent=src.title;`,
+    expect: ['15.'],
+  },
+  {
+    id: 'ZC-违规-应门外之声不再有后果',
+    file: 'js/chapter-v3.js',
+    desc: '删掉 answeredName 变体的触发条件 —— 违规只剩文本收益',
+    from: `        { when:{flag:'answeredName'},`,
+    to: `        { when:{flag:'neverAchievedFlag'},`,
+    expect: ['16.'],
+  },
+  {
+    id: 'ZD-违规-掀轿帘不再有后果',
+    file: 'js/chapter-v3.js',
+    from: `        { when:{flag:'liftedVeil'},`,
+    to: `        { when:{flag:'neverAchievedFlag'},`,
+    expect: ['16.'],
   },
 ];
 

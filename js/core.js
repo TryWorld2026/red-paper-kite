@@ -89,6 +89,7 @@ function updateStats(){
   else if(G.rite>=2) b.add('rite-mid');
   else if(G.rite>=1) b.add('rite-low');
   if(G.rite>=4) Sound.startHeart(); else Sound.stopHeart();
+  applyErosion();
 }
 
 function updateInventory(){
@@ -98,9 +99,68 @@ function updateInventory(){
   const items=Object.keys(counts).map(id=>{
     const it=ITEMS[id]; if(!it) return '';
     const cnt=counts[id];
-    return `<span class="inv-item" title="${it.desc||''}">${it.name}${cnt>1?' ×'+cnt:''}</span>`;
+    return `<span class="inv-item" data-item="${id}" title="${it.desc||''}">${it.name}${cnt>1?' ×'+cnt:''}</span>`;
   }).join('');
-  inv.innerHTML=`<span class="inv-title">遗物</span>${items?items:'<span class="inv-empty">尚未拾起任何名字</span>'}`;
+  const empty = G.rite>=3 ? EMPTY_ERODED : EMPTY_HONEST;
+  inv.innerHTML=`<span class="inv-title">遗物</span>${items?items:'<span class="inv-empty">'+empty+'</span>'}`;
+}
+
+/* ================= UI 分层侵蚀 =================
+   顶栏与遗物栏是全游戏唯一一直对玩家说实话的地方。仪式渗透越深，
+   它们越要改口；但主菜单/结局录是"现实锚点"，只有渗透 4 或
+   已被代笔（anchorFall）时才失守 —— 锚点先立住，失守才有分量。
+   两条铁律：①文案一律从下面的诚实常量重算（不做增量改写，故新开一局必然恢复）；
+            ②只动 label，绝不动 onclick/handler（否则会把玩家唯一出路锁死）。 */
+const HOUR_RITE_SUFFIX={3:' · 礼数在替你计时',4:' · 吉时将至',5:' · 吉时将至'};
+const EMPTY_HONEST='尚未拾起任何名字';
+const EMPTY_ERODED='你的名字还没被写下来';
+const TOPBAR_HONEST={'btn-save':'存档','btn-load':'读档','btn-menu':'主菜单'};
+const TOPBAR_ERODED ={'btn-save':'存名','btn-load':'唤名','btn-menu':'归席'};
+const MENU_HONEST={
+  title:'红纸鸢', sub:'归 名',
+  desc:'民国二十三年，浙东槐阴村。<br>你来迎亲，却没有人肯告诉你新娘在哪里。<br><br>'
+      +'<span class="menu-hazard">—— 找回她，你才能离村。而规矩说，别提她的名字。</span>'
+};
+const MENU_FALL={
+  title:'婚 已 成', sub:'归 名',
+  desc:'民国二十三年，浙东槐阴村。<br>你来迎亲，却没有人肯告诉你新娘在哪里。<br><br>'
+      +'<span class="menu-hazard">—— 这一句已由新郎读过。婚期第三日，礼数不缺。</span>'
+};
+
+function chromeEroded(){ return !!G && (G.rite>=4 || hasFlag('anchorFall')); }
+
+function applyErosion(){
+  if(!G) return;
+  if(el('hour-name')){
+    const base=HOUR_NAMES[G.hour]||'';
+    el('hour-name').textContent = G.rite>=3 ? base+(HOUR_RITE_SUFFIX[G.rite]||'') : base;
+  }
+  const deep=G.rite>=4;
+  Object.keys(TOPBAR_HONEST).forEach(id=>{
+    const b=el(id); if(!b) return;
+    b.textContent = deep?TOPBAR_ERODED[id]:TOPBAR_HONEST[id];
+    if(deep) b.classList.add('eroded'); else b.classList.remove('eroded');
+  });
+}
+/* 锚点失守：只重写文案，不碰按钮与流程 */
+function applyMenuErosion(){
+  const fell=chromeEroded();
+  const src=fell?MENU_FALL:MENU_HONEST;
+  if(el('menu-title')) el('menu-title').textContent=src.title;
+  if(el('menu-sub'))   el('menu-sub').textContent=src.sub;
+  if(el('menu-desc'))  el('menu-desc').innerHTML=src.desc;
+}
+
+/* ---------- 遗物读原文：玩家可回看核对，异常不留白 ---------- */
+function readRelic(id){
+  const it=ITEMS[id]; if(!it) return;
+  const box=el('relic-read');
+  if(!box) return;
+  /* 渗透 4 起，遗物原文里她已被换成玩家此刻对她的称呼 */
+  box.innerHTML='<div class="relic-name">'+it.name+'</div><div class="relic-body">'
+    + (G.rite>=4 ? erodeText(it.read) : it.read) + '</div>';
+  box.classList.remove('hidden');
+  Sound.paper();
 }
 
 /* ---------- 打字机(纯渲染,不做随机异变) ---------- */
@@ -220,6 +280,7 @@ function renderScene(){
 
 /* ---------- 流程 ---------- */
 function showMenu(){
+  applyMenuErosion();
   el('menu-screen').classList.remove('hidden');
   el('ending-screen').classList.add('hidden');
   el('gallery-screen').classList.add('hidden');
@@ -242,18 +303,23 @@ function continueGame(){
 
 /* ---------- 结局图鉴 ---------- */
 function showGallery(){
+  applyMenuErosion();
+  const fell=chromeEroded();
   const ends=getEndings();
   const ids=Object.keys(ENDINGS_V3);
   const n=ends.filter(id=>ids.includes(id)).length;
-  el('gallery-count').textContent=`已见 ${n} / ${ids.length} 种结局`;
+  el('gallery-count').textContent=fell
+    ? `${n} / ${ids.length} 种结局 —— 其余的，也已替你走过`
+    : `已见 ${n} / ${ids.length} 种结局`;
   const grid=el('gallery-grid'); grid.innerHTML='';
   ids.forEach(id=>{
     const e=ENDINGS_V3[id]; const un=ends.includes(id);
     const card=document.createElement('div');
     card.className='gcard'+(un?' unlocked':'');
+    const locked=fell?'尚未见证。你不必再来一次——这一种已经发生过了。':'尚未见证。换一种方式记住她,再来一次。';
     card.innerHTML=`
       <div class="gname">${un?e.name:'？ ？ ？'}</div>
-      <div class="gdesc">${un?e.text:'尚未见证。换一种方式记住她,再来一次。'}</div>
+      <div class="gdesc">${un?e.text:locked}</div>
       <div class="gtag">${un?(e.type==='death'?'凶 终':e.type==='good'?'吉 终':'平 终'):''}</div>`;
     grid.appendChild(card);
   });

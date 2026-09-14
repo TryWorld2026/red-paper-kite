@@ -43,6 +43,7 @@ const sandbox = {
   document: {
     getElementById: id => (elements[id] || (elements[id] = makeEl())),
     createElement: makeEl,
+    __els: elements,   /* 供界面侵蚀断言读取真实渲染结果 */
     body: { classList: makeClassList(), appendChild() {}, addEventListener() {} },
   },
   localStorage: {
@@ -433,17 +434,26 @@ guard('结局小结只给措辞, 不给分数', () => {
    ===================================================================== */
 section('6. 渲染确定性');
 guard('重复 run 输出一致', () => {
+  /* 本节是"异变只能来自确定状态"的守门人。只跑两遍比对的话, 一个
+     50% 掷硬币的实现有一半机会蒙过去 —— 所以这里把 Math.random 换成
+     交替越过阈值的序列, 让任何掷硬币式写法必然产出两种结果。 */
   const diff = run(`(function(){
-    T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
-    T.tap('arrival','enter'); addEvidence('paternal',2); adjustRite(3);
-    const bad=[];
-    Object.keys(CHAPTER_V3).forEach(id=>{
-      G.scene=id;
-      const a=currentScenes()[id].run(), b=currentScenes()[id].run();
-      if(a.text!==b.text) bad.push(id+':文本');
-      if(JSON.stringify(a.choices.map(c=>c.text))!==JSON.stringify(b.choices.map(c=>c.text))) bad.push(id+':选项');
-    });
-    return bad.join(',');
+    const bak=Math.random;
+    let flip=false; Math.random=()=>((flip=!flip)?0.51:0.49);
+    try{
+      T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
+      T.tap('arrival','enter'); addEvidence('paternal',2); adjustRite(3);
+      const bad=[];
+      [0,2,3,5].forEach(r=>{ G.rite=r;
+        Object.keys(CHAPTER_V3).forEach(id=>{
+          G.scene=id;
+          const a=currentScenes()[id].run(), b=currentScenes()[id].run();
+          if(a.text!==b.text) bad.push(id+'@'+r+':文本');
+          if(JSON.stringify(a.choices.map(c=>c.text))!==JSON.stringify(b.choices.map(c=>c.text))) bad.push(id+'@'+r+':选项');
+        });
+      });
+      return bad.join(',');
+    }finally{ Math.random=bak; }
   })()`);
   check('非确定性场景', diff || '(无)', '(无)');
 });
@@ -581,9 +591,209 @@ guard('单局集齐五件', () => {
 });
 
 /* =====================================================================
-   12. 随机播放: 零选项 / 缺失场景 / 不收敛 / 结局分布
+   12. 作者权侵蚀: 仪式接管"谁在说话", 但不得改变选择本身
    ===================================================================== */
-section('12. 随机播放冒烟测试');
+section('12. 作者权侵蚀');
+guard('渗透 2 起叙述性选项被改口, 且不改变指向与效果', () => {
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
+       T.tap('arrival','enter')`);
+  const clean = run(`(function(){ const c=currentScenes().courtyard.run().choices.find(x=>x.id==='margins');
+                      return [c.rawLabel, c.text, /你/.test(c.text)].join('#'); })()`);
+  check('渗透 0 原文', clean.split('#')[0], clean.split('#')[1]);
+  run(`G.rite=2`);
+  /* 同一状态连评 30 次: 掷硬币式的实现必然在这里露馅 */
+  const probe = run(`(function(){
+    const seen=new Set(); let hadYou=false;
+    for(let i=0;i<30;i++){
+      const c=currentScenes().courtyard.run().choices.find(x=>x.id==='margins');
+      seen.add(c.text); if(/你/.test(c.text)) hadYou=true;
+    }
+    return JSON.stringify({n:seen.size, changed:[...seen].some(t=>t!==${JSON.stringify(clean.split('#')[0])}), hadYou});
+  })()`);
+  const p = JSON.parse(probe);
+  check('渗透 2 措辞确定', p.n, '1');
+  check('渗透 2 已改口', p.changed, 'true');
+  check('渗透 2 不再对玩家说"你"', p.hadYou, 'false');
+  const before = run(`[G.scene, T.total(), G.inventory.join(',')].join('|')`);
+  run(`T.tap('courtyard','margins')`);
+  check('改口不改行为: 仍进同一场景', run(`[G.scene, T.total(), G.inventory.join(',')].join('|')`),
+        'margins|'+before.split('|').slice(1).join('|'));
+});
+guard('玩家说出口的话不得被接管', () => {
+  run(`T.wipe(); G=null; startGame(); G.rite=3`);
+  check('纠正称呼仍是对她讲的原句',
+    run(`currentScenes().reunion.run().choices.find(c=>c.id==='correct').text`),
+    run(`CHAPTER_V3.reunion.choices.find(c=>c.id==='correct').label`));
+  check('失讳自白一字不动',
+    run(`(G.scene='loss-question', currentScenes()['loss-question'].run().choices.find(c=>c.id==='admit-loss').text)`),
+    run(`CHAPTER_V3['loss-question'].choices.find(c=>c.id==='admit-loss').label`));
+  check('失讳正文不被接管', run(`/新郎/.test(currentScenes()['loss-question'].run().text)`), 'false');
+});
+guard('渗透满格后正文连"你"也不给玩家', () => {
+  run(`T.wipe(); G=null; startGame(); addEvidence('marital',3); G.scene='evidence-husband'; G.rite=4`);
+  check('渗透 4 正文仍称玩家为"你"', run(`/你/.test(currentScenes()['evidence-husband'].run().text)`), 'true');
+  run(`G.rite=5`);
+  check('渗透 5 改称"新郎"', run(`currentScenes()['evidence-husband'].run().text.indexOf('新郎')>=0`), 'true');
+});
+guard('侵蚀不得破坏 HTML 标签', () => {
+  const bad = run(`(function(){
+    const tags=s=>(s.match(/<[^>]*>/g)||[]).join('|');
+    const out=[];
+    [0,1,2,3,4,5].forEach(r=>{ Object.keys(CHAPTER_V3).forEach(id=>{
+      T.wipe(); G=null; startGame(); addEvidence('marital',3); G.rite=r; G.scene=id;
+      const d=currentScenes()[id].run();
+      /* 正文：尖括号必须成对, 且每个 < 都开启一个标签(替换若切进标签会留下裸 < 或孤立 >) */
+      const t=d.text;
+      const lt=(t.match(/</g)||[]).length, gt=(t.match(/>/g)||[]).length;
+      if(lt!==gt) out.push(id+' 尖括号不成对');
+      if(/<(?![\\/]?[a-zA-Z])/.test(t)) out.push(id+' 正文掺入残标签');
+      /* 选项：只许换字, 标签结构必须与诚实原文完全一致 */
+      d.choices.forEach(c=>{ if(tags(c.text)!==tags(c.rawLabel)) out.push(id+'.'+c.id+' 选项标签'); });
+    }); });
+    return [...new Set(out)].join(' ; ');
+  })()`);
+  check('破损点', bad || '(无)', '(无)');
+});
+
+/* =====================================================================
+   13. 回看账: 契约第 2 条要求每次异常都能被核对
+   ===================================================================== */
+section('13. 回看账(婚书边角)');
+guard('账页永远诚实且必有出口', () => {
+  run(`T.wipe(); G=null; startGame(); G.rite=5; addEvidence('marital',5); setFlag('answeredName')`);
+  const t = run(`currentScenes().margins.run().text`);
+  check('账页不被仪式改写', /新郎/.test(t), 'false');
+  check('账页含已犯之违规', t.indexOf('门外叫了一声')>=0, 'true');
+  check('出口始终可用', run(`T.has('margins','back')`), 'true');
+});
+guard('每条违规都在账上留一行, 且重访时行数增加', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='margins'`);
+  const empty = run(`currentScenes().margins.run().text`);
+  check('干净时不虚构罪证', empty.indexOf('纸上干净')>=0, 'true');
+  run(`setFlag('liftedVeil'); setFlag('burnedMarriagePaper')`);
+  const two = run(`currentScenes().margins.run().text`);
+  check('掀帘入账', two.indexOf('轿帘')>=0, 'true');
+  check('焚书入账', two.indexOf('烧过')>=0, 'true');
+  run(`G.visited['margins']=2`);
+  check('重访提示行数变多', run(`currentScenes().margins.run().text.indexOf('又多出一行')>=0`), 'true');
+});
+
+/* =====================================================================
+   14. 节点剥夺: 全作唯一的夺权, 门槛必须极高
+   ===================================================================== */
+section('14. 节点剥夺门槛');
+guard('不足两条预警或渗透不够则不剥夺', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='naming'; G.rite=2;
+       setFlag('acceptedRules'); setFlag('warnDeputy')`);
+  check('两预警+渗透 2', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'true');
+  run(`G.rite=1`);
+  check('两预警+渗透 1 不剥夺', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'false');
+  run(`G.rite=4; delete G.flags.warnDeputy`);
+  check('缺一预警不剥夺', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'false');
+  run(`G.flags={}`);
+  check('零预警不剥夺', run(`usurpActive(CHAPTER_V3.naming.choices.find(c=>c.id==='let-them'))`), 'false');
+});
+guard('剥夺一旦发生即入账并撼动锚点', () => {
+  run(`T.wipe(); T.ended=null; G=null; startGame(); G.scene='naming';
+       setFlag('acceptedRules'); setFlag('warnDeputy'); G.rite=2`);
+  check('点击前无代笔记录', run(`usurpCount()`), '0');
+  run(`T.tap('naming','let-them')`);
+  check('结局仍按原设计抵达', run('T.ended'), 'ending-marriage');
+  check('代笔已入账', run(`usurpCount()`), '1');
+  check('锚点标记已落下', run(`hasFlag('anchorFall')`), 'true');
+  check('账上可核对', run(`currentScenes().margins.run().text.indexOf('不是你落的')>=0`), 'true');
+});
+
+/* =====================================================================
+   15. 界面分层侵蚀: 改字可以, 改行为就是杀人
+   ===================================================================== */
+section('15. 界面分层侵蚀');
+guard('顶栏改称但功能分毫不动', () => {
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
+       T.tap('arrival','enter')`);
+  /* 沙箱不加载 index.html, 处理函数由测试自己绑上, 再验证侵蚀不会清掉它 */
+  const bound = run(`document.__els['btn-menu'].onclick=function backToMenu(){}; !!document.__els['btn-menu'].onclick`);
+  check('已绑上返回主菜单', bound, 'true');
+  run(`G.rite=3; updateStats()`);
+  check('渗透 3 顶栏仍诚实', run(`document.__els['btn-save'].textContent`), '存档');
+  run(`G.rite=4; updateStats()`);
+  check('渗透 4 顶栏已改口', run(`document.__els['btn-save'].textContent`), '存名');
+  check('时辰也已改口', run(`document.__els['hour-name'].textContent.indexOf('吉时将至')>=0`), 'true');
+  check('存档仍可写', run(`saveGame()`), 'true');
+  check('读档仍可还原', run(`(function(){ const want=G.scene; G.scene='arrival'; loadGame(); return G.scene===want; })()`), 'true');
+  check('改口后处理函数未被清掉', run(`typeof document.__els['btn-menu'].onclick`), 'function');
+  run(`G.rite=2; updateStats()`);
+  check('渗透 2 顶栏恢复诚实', run(`document.__els['btn-save'].textContent`), '存档');
+});
+guard('锚点只在渗透极高或被代笔后失守', () => {
+  run(`T.wipe(); G=null; startGame(); document.getElementById('btn-start').onclick=function go(){}`);
+  run(`G.rite=3; showMenu()`);
+  check('渗透 3 菜单诚实', run(`document.__els['menu-title'].textContent`), '红纸鸢');
+  run(`G.rite=4; showMenu()`);
+  check('渗透 4 菜单失守', run(`document.__els['menu-title'].textContent`), '婚 已 成');
+  check('失守后开始按钮仍可点', run(`typeof document.__els['btn-start'].onclick`), 'function');
+  run(`G=freshState(); showMenu()`);
+  check('新开一局锚点复原', run(`document.__els['menu-title'].textContent`), '红纸鸢');
+  run(`G=freshState(); setFlag('anchorFall'); showGallery()`);
+  check('被代笔后结局录也失守', run(`document.__els['gallery-count'].textContent.indexOf('也已替你走过')>=0`), 'true');
+});
+guard('遗物栏措辞随渗透改变, 遗物本身不受影响', () => {
+  run(`T.wipe(); G=null; startGame()`);
+  check('无遗物时诚实', run(`document.__els['inventory'].innerHTML.indexOf('尚未拾起')>=0`), 'true');
+  run(`G.rite=3; updateInventory()`);
+  check('渗透 3 换了说法', run(`document.__els['inventory'].innerHTML.indexOf('你的名字还没被写下来')>=0`), 'true');
+  run(`giveItem('kite'); G.rite=0; updateInventory()`);
+  check('有遗物后不再显示空栏文案', run(`document.__els['inventory'].innerHTML.indexOf('还没被写下来')>=0`), 'false');
+  check('遗物名仍可回看', run(`document.__els['inventory'].innerHTML.indexOf('kite')>=0`), 'true');
+});
+
+/* =====================================================================
+   16. 违规代价: 违反规矩必须留下不可逆的痕迹
+   ===================================================================== */
+section('16. 违规的不可逆代价');
+guard('应门外之声改变她第一次照面的方式', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='reunion'; G.visited={}`);
+  check('未违规: 她只会念礼词', run(`currentScenes().reunion.run().text.indexOf('良辰已至')>=0`), 'true');
+  run(`T.wipe(); G=null; startGame(); setFlag('answeredName'); G.scene='reunion'; G.visited={}`);
+  const t = run(`currentScenes().reunion.run().text`);
+  check('违规后: 她改用你的声音叫你', t.indexOf('你的名字')>=0, 'true');
+  check('违规后: 礼词不再救场', t.indexOf('良辰已至')>=0, 'false');
+});
+guard('掀轿帘让仪式提前起笔', () => {
+  run(`T.wipe(); G=null; startGame(); G.scene='naming'; G.visited={}`);
+  check('未违规: 帘自行升起', run(`currentScenes().naming.run().text.indexOf('自行升起')>=0`), 'true');
+  run(`T.wipe(); G=null; startGame(); setFlag('liftedVeil'); G.scene='naming'; G.visited={}`);
+  const t = run(`currentScenes().naming.run().text`);
+  check('违规后: 空格上已有不是你落的一划', t.indexOf('一划')>=0, 'true');
+  check('代价不改定名门控', run(`(addEvidence('paternal',2), T.has('naming','paternal'))`), 'true');
+});
+guard('代价只改措辞与痕迹, 不改三种结局的可达性', () => {
+  const dist = runJson(`(function(){
+    const out={};
+    [['return','ending-return'],['marriage','ending-marriage'],['loss','ending-loss'],
+     ['marriage-silent','ending-marriage']].forEach(([k,want])=>{
+      T.hourBad.length=0; T.route(k); out[k]=(T.ended===want)?'ok':('落到 '+T.ended);
+    });
+    return JSON.stringify(out);
+  })()`);
+  check('四条终局路线仍各自收敛', Object.values(dist).filter(v=>v!=='ok').join(','), '');
+  check('违规路线仍能拿到正婚', run(`(function(){
+      T.wipe(); T.ended=null; G=null; startGame();
+      T.tap('arrival','read-ledger'); T.tap('gate-ledger','back'); T.tap('arrival','enter');
+      T.tap('courtyard','rules'); T.tap('rules','agree');
+      T.tap('first-call','answer'); T.tap('answered-call','step-back');
+      T.tap('courtyard','east'); T.tap('east-room','lift'); T.tap('open-veil','close');
+      T.tap('east-room','leave'); T.tap('courtyard','west');
+      T.tap('west-room','take-husband'); T.tap('evidence-husband','back'); T.tap('west-room','leave');
+      T.tap('courtyard','naming'); T.tap('naming','marital');
+      return T.ended; })()`), 'ending-marriage');
+  check('违规也刷不出剥夺之外的捷径', run(`usurpCount()`), '0');
+});
+
+/* =====================================================================
+   17. 随机播放: 零选项 / 缺失场景 / 不收敛 / 结局分布
+   ===================================================================== */
+section('17. 随机播放冒烟测试');
 guard('500 局随机路线', () => {
   const stat = runJson(`(function(){
     const bad=new Set(), dist={}; let unconv=0;
