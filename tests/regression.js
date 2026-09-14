@@ -82,21 +82,26 @@ advanceHourTo = function (h) {
   if (G.hour < before) T.hourBad.push('advanceHourTo(' + h + ') ' + before + '->' + G.hour);
 };
 
-/* 一次性选项标记与场景跳转都必须记录, 便于定向复现 */
-T.tap = function (scene, frag) {
+/* 一次性选项标记与场景跳转都必须记录, 便于定向复现。
+   按剧本 id 定位: 选项文案会被仪式侵蚀改写, id 才是稳定标识。 */
+T.tap = function (scene, id) {
   const before = G.hour;
   const list = (currentScenes()[scene].run().choices) || [];
-  const hit = list.find(c => c.text.indexOf(frag) >= 0);
-  if (!hit) throw new Error('场景「' + scene + '」无可用选项含「' + frag + '」; 实际: ' + (list.map(c => c.text).join(' | ') || '(零选项)'));
-  if (hit.disabled) throw new Error('场景「' + scene + '」选项「' + frag + '」是禁用的');
+  const hit = list.find(c => c.id === id);
+  if (!hit) throw new Error('场景「' + scene + '」无可用选项 id=「' + id + '」; 实际: ' + (list.map(c => c.id).join(' | ') || '(零选项)'));
+  if (hit.disabled) throw new Error('场景「' + scene + '」选项 id=「' + id + '」是禁用的');
   hit.action();
   /* 一次点击可能走完整条回调链, 回拨只会在此暴露 */
-  if (G && G.hour < before) T.hourBad.push('点击「' + frag + '」致回拨 ' + before + '->' + G.hour);
+  if (G && G.hour < before) T.hourBad.push('点击「' + id + '」致回拨 ' + before + '->' + G.hour);
 };
 
 T.KEYS = ['hongzhiyuan_save_v3', 'hongzhiyuan_endings_v3', 'hongzhiyuan_memory_v3',
           'hongzhiyuan_save_v2', 'hongzhiyuan_endings_v2', 'hongzhiyuan_achievements_v2',
           'hongzhiyuan_pov_unlocked_v2', 'hongzhiyuan_memory_v2'];
+/* 按剧本 id 判断选项当前是否可点。文案会被仪式侵蚀改写, id 才是稳定标识。 */
+T.has = function (scene, id) {
+  return (currentScenes()[scene].run().choices || []).some(c => c.id === id);
+};
 T.wipe = function () { T.KEYS.forEach(k => localStorage.removeItem(k)); };
 T.end = id => getEndings().indexOf(id) >= 0;
 T.at = () => (G ? G.scene : null);
@@ -108,11 +113,11 @@ T.enter = function (o) {
   o = o || {};
   T.wipe(); T.ended = null; G = null;
   startGame();
-  if (o.ledger !== false) { T.tap('arrival', '婚期账本'); T.tap('gate-ledger', '记住'); }
-  T.tap('arrival', '进入挂着白灯笼');
+  if (o.ledger !== false) { T.tap('arrival', 'read-ledger'); T.tap('gate-ledger', 'back'); }
+  T.tap('arrival', 'enter');
 };
 
-T.court = function () { T.tap('courtyard', '是哪三条规矩'); T.tap('rules', '应下规矩'); };
+T.court = function () { T.tap('courtyard', 'rules'); T.tap('rules', 'agree'); };
 
 /*
  * 三条终局路线。每步显式给出, 用例之间不共享残留状态。
@@ -123,67 +128,67 @@ T.court = function () { T.tap('courtyard', '是哪三条规矩'); T.tap('rules',
 T.route = function (kind) {
   if (kind === 'return') {
     T.enter(); T.court();
-    T.tap('first-call', '守住第一条规矩');
-    T.tap('courtyard', '去西厢');
-    T.tap('west-room', '取走父亲的信');
-    T.tap('evidence-father', '记住');
-    T.tap('west-room', '合上箱子');
-    T.tap('courtyard', '替她定名');
-    T.tap('naming', '周氏');
+    T.tap('first-call', 'silence');
+    T.tap('courtyard', 'west');
+    T.tap('west-room', 'take-father');
+    T.tap('evidence-father', 'back');
+    T.tap('west-room', 'leave');
+    T.tap('courtyard', 'naming');
+    T.tap('naming', 'paternal');
     return;
   }
   if (kind === 'marriage') {
     T.enter(); T.court();
-    T.tap('first-call', '守住第一条规矩');
-    T.tap('courtyard', '去西厢');
-    T.tap('west-room', '取走夫家的信');
-    T.tap('evidence-husband', '记住');
-    T.tap('west-room', '合上箱子');
-    T.tap('courtyard', '去后院祠堂');
-    T.tap('shrine-room', '问这块牌位');
-    T.tap('tablet-talk', '退回祠堂');
-    T.tap('shrine-room', '退出祠堂');
-    T.tap('courtyard', '替她定名');
-    T.tap('naming', '陈门新妇');
+    T.tap('first-call', 'silence');
+    T.tap('courtyard', 'west');
+    T.tap('west-room', 'take-husband');
+    T.tap('evidence-husband', 'back');
+    T.tap('west-room', 'leave');
+    T.tap('courtyard', 'shrine');
+    T.tap('shrine-room', 'ask');
+    T.tap('tablet-talk', 'back');
+    T.tap('shrine-room', 'leave');
+    T.tap('courtyard', 'naming');
+    T.tap('naming', 'marital');
     return;
   }
   if (kind === 'marriage-silent') {
     /* 只读了账本、什么都没深究的新郎: 系统会替他写完这个名字 */
     T.enter(); T.court();
-    T.tap('first-call', '守住第一条规矩');
-    T.tap('courtyard', '替她定名');
-    T.tap('naming', '喜婆替你落笔');
+    T.tap('first-call', 'silence');
+    T.tap('courtyard', 'naming');
+    T.tap('naming', 'let-them');
     return;
   }
   if (kind === 'loss') {
     T.enter(); T.court();
-    T.tap('first-call', '回应门外');
-    T.tap('answered-call', '退开');
-    T.tap('courtyard', '去西厢');
-    T.tap('west-room', '没有抬头');
-    T.tap('evidence-personal', '空白');
-    T.tap('west-room', '合上箱子');
-    T.tap('courtyard', '替她定名');
-    T.tap('naming', '自写的那个字');
-    T.tap('loss-question', '把名字还给你');
+    T.tap('first-call', 'answer');
+    T.tap('answered-call', 'step-back');
+    T.tap('courtyard', 'west');
+    T.tap('west-room', 'take-personal');
+    T.tap('evidence-personal', 'back');
+    T.tap('west-room', 'leave');
+    T.tap('courtyard', 'naming');
+    T.tap('naming', 'personal');
+    T.tap('loss-question', 'return-name');
     return;
   }
   if (kind === 'reunion') {
     /* 三类证据各至少一枚 → 照面, 再把她从"新妇"里纠正出来 */
     T.enter(); T.court();
-    T.tap('first-call', '守住第一条规矩');
-    T.tap('courtyard', '去西厢');
-    T.tap('west-room', '没有抬头');
-    T.tap('evidence-personal', '空白');
-    T.tap('west-room', '取走夫家的信');
-    T.tap('evidence-husband', '记住');
-    T.tap('west-room', '合上箱子');
-    T.tap('courtyard', '去东厢新房');
-    T.tap('east-room', '取走纸鸢');
-    T.tap('kite-clue', '收好');
-    T.tap('east-room', '退出新房');
-    T.tap('courtyard', '轿帘后');
-    T.tap('reunion', '纠正称呼');
+    T.tap('first-call', 'silence');
+    T.tap('courtyard', 'west');
+    T.tap('west-room', 'take-personal');
+    T.tap('evidence-personal', 'back');
+    T.tap('west-room', 'take-husband');
+    T.tap('evidence-husband', 'back');
+    T.tap('west-room', 'leave');
+    T.tap('courtyard', 'east');
+    T.tap('east-room', 'kite');
+    T.tap('kite-clue', 'keep');
+    T.tap('east-room', 'leave');
+    T.tap('courtyard', 'reunion');
+    T.tap('reunion', 'correct');
     return;
   }
   throw new Error('未知路线 ' + kind);
@@ -314,21 +319,21 @@ guard('照面场景在证据 >=3 时开放', () => {
    ===================================================================== */
 section('4. 寻名进度门控');
 guard('零证据时 courtyard 不给定名', () => {
-  run(`T.wipe(); G=null; startGame(); T.tap('arrival','进入挂着白灯笼')`);
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','enter')`);
   check('证据总数', run('T.total()'), '0');
-  check('无"定名"选项', run(`!(currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('定名')>=0))`), 'true');
-  check('无"照面"选项', run(`!(currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('轿帘后')>=0))`), 'true');
+  check('无定名选项', run(`T.has('courtyard','naming')`), 'false');
+  check('无照面选项', run(`T.has('courtyard','reunion')`), 'false');
   check('仍有出路(不锁死)', run(`currentScenes().courtyard.run().choices.length>0`), 'true');
 });
 guard('一类证据即可定名, 三类的证据才可见照面', () => {
   run(`T.enter({ledger:false}); addEvidence('paternal',1)`);
-  check('1 类证据可定名', run(`currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('定名')>=0)`), 'true');
-  check('1 类证据不可照面', run(`!currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('轿帘后')>=0)`), 'true');
+  check('1 类证据可定名', run(`T.has('courtyard','naming')`), 'true');
+  check('1 类证据不可照面', run(`T.has('courtyard','reunion')`), 'false');
   run(`addEvidence('marital',1); addEvidence('personal',1)`);
-  check('3 类证据可照面', run(`currentScenes().courtyard.run().choices.some(c=>c.text.indexOf('轿帘后')>=0)`), 'true');
+  check('3 类证据可照面', run(`T.has('courtyard','reunion')`), 'true');
 });
 guard('定名前不得有零选项死路', () => {
-  check('沉默兜底始终可用', run(`currentScenes().naming.run().choices.some(c=>c.text.indexOf('替你落笔')>=0)`), 'true');
+  check('沉默兜底始终可用', run(`T.has('naming','let-them')`), 'true');
 });
 guard('同一路证据有上限,不可反复刷', () => {
   run(`T.wipe(); G=null; startGame(); for(let i=0;i<20;i++) addEvidence('paternal',2)`);
@@ -338,39 +343,37 @@ guard('同一路证据有上限,不可反复刷', () => {
 });
 guard('可重复选项不得刷出隐藏状态', () => {
   run(`T.wipe(); G=null; startGame(); G.scene='east-room'; adjustRite(0)`);
-  run(`(function(){ for(let i=0;i<30;i++){
-          currentScenes()['east-room'].run().choices.find(c=>c.text.indexOf('掀开')>=0).action();
-          currentScenes()['open-veil'].run().choices.find(c=>c.text.indexOf('放下')>=0).action(); } })()`);
+  run(`(function(){ const tap=(s,id)=>currentScenes()[s].run().choices.find(c=>c.id===id).action();
+        for(let i=0;i<30;i++){ tap('east-room','lift'); tap('open-veil','close'); } })()`);
   check('掀帘 30 次后渗透仍为 1', run('G.rite'), '1');
-  check('掀帘仍可随时再掀(叙事未被锁死)', run(`currentScenes()['east-room'].run().choices.some(c=>c.text.indexOf('掀开')>=0)`), 'true');
+  check('掀帘仍可随时再掀(叙事未被锁死)', run(`T.has('east-room','lift')`), 'true');
   run(`G.scene='shrine-room'`);
-  run(`(function(){ for(let i=0;i<30;i++){
-          currentScenes()['shrine-room'].run().choices.find(c=>c.text.indexOf('火盆')>=0).action();
-          currentScenes().burning.run().choices.find(c=>c.text.indexOf('退开')>=0).action(); } })()`);
+  run(`(function(){ const tap=(s,id)=>currentScenes()[s].run().choices.find(c=>c.id===id).action();
+        for(let i=0;i<30;i++){ tap('shrine-room','burn'); tap('burning','step-back'); } })()`);
   check('投火盆 30 次后自称证据仍为 1', run('evidenceScore("personal")'), '1');
   check('刷不到《失讳》门槛(需 2)', run('evidenceScore("personal") < 2'), 'true');
 });
 guard('误点定名不再被迫通关,可退回补证据', () => {
   run(`T.wipe(); G=null; startGame();
-       T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
-       T.tap('courtyard','替她定名')`);
-  check('只有 1 点证据时仍可退出', run(`currentScenes().naming.run().choices.some(c=>c.text.indexOf('退回中庭')>=0)`), 'true');
+       T.tap('arrival','read-ledger'); T.tap('gate-ledger','back'); T.tap('arrival','enter');
+       T.tap('courtyard','naming')`);
+  check('只有 1 点证据时仍可退出', run(`T.has('naming','not-yet')`), 'true');
   check('退出前未触发任何结局', run('T.ended'), 'null');
-  run(`T.tap('naming','退回中庭')`);
+  run(`T.tap('naming','not-yet')`);
   check('退回后还在游戏内', run('T.at()'), 'courtyard');
   check('退回后时辰不回拨', run('G.hour'), '4');
-  run(`T.tap('courtyard','去西厢'); T.tap('west-room','取走父亲的信'); T.tap('evidence-father','记住');
-       T.tap('west-room','合上箱子'); T.tap('courtyard','替她定名')`);
-  check('补证据后具名结局可选', run(`currentScenes().naming.run().choices.some(c=>c.text.indexOf('送她归宗')>=0)`), 'true');
-  run(`T.tap('naming','周氏')`);
+  run(`T.tap('courtyard','west'); T.tap('west-room','take-father'); T.tap('evidence-father','back');
+       T.tap('west-room','leave'); T.tap('courtyard','naming')`);
+  check('补证据后具名结局可选', run(`T.has('naming','paternal')`), 'true');
+  run(`T.tap('naming','paternal')`);
   check('最终仍能拿到归籍', run('T.ended'), 'ending-return');
 });
 guard('一次性选项用完即消失', () => {
   run(`T.wipe(); G=null; startGame();
-       T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
-       T.tap('courtyard','去西厢'); T.tap('west-room','取走父亲的信'); T.tap('evidence-father','记住')`);
-  check('父亲的信已不可再取', run(`!currentScenes()['west-room'].run().choices.some(c=>c.text.indexOf('取走父亲的信')>=0)`), 'true');
-  check('其余两封仍可取', run(`currentScenes()['west-room'].run().choices.filter(c=>/取走夫家的信|没有抬头/.test(c.text)).length`), '2');
+       T.tap('arrival','read-ledger'); T.tap('gate-ledger','back'); T.tap('arrival','enter');
+       T.tap('courtyard','west'); T.tap('west-room','take-father'); T.tap('evidence-father','back')`);
+  check('父亲的信已不可再取', run(`T.has('west-room','take-father')`), 'false');
+  check('其余两封仍可取', run(`['take-husband','take-personal'].filter(id=>T.has('west-room',id)).length`), '2');
   check('重复取证据不会叠加', run(`evidenceScore('paternal')`), '3');
 });
 
@@ -431,8 +434,8 @@ guard('结局小结只给措辞, 不给分数', () => {
 section('6. 渲染确定性');
 guard('重复 run 输出一致', () => {
   const diff = run(`(function(){
-    T.wipe(); G=null; startGame(); T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住');
-    T.tap('arrival','进入挂着白灯笼'); addEvidence('paternal',2); adjustRite(3);
+    T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
+    T.tap('arrival','enter'); addEvidence('paternal',2); adjustRite(3);
     const bad=[];
     Object.keys(CHAPTER_V3).forEach(id=>{
       G.scene=id;
@@ -540,8 +543,8 @@ guard('缺字段/脏场景的旧档可归一', () => {
   check('未知遗物被剔除', run(`JSON.stringify(G.inventory)`), '["kite"]');
 });
 guard('断点续玩状态一致', () => {
-  run(`T.wipe(); G=null; startGame(); T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住');
-       T.tap('arrival','进入挂着白灯笼'); addEvidence('paternal',2); G.scene='courtyard'; saveGame();`);
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
+       T.tap('arrival','enter'); addEvidence('paternal',2); G.scene='courtyard'; saveGame();`);
   const snap = run(`JSON.stringify({e:G.evidence,r:G.rite,h:G.hour,f:Object.keys(G.flags).sort(),i:G.inventory})`);
   run(`G=null; loadGame();`);
   const back = run(`JSON.stringify({e:G.evidence,r:G.rite,h:G.hour,f:Object.keys(G.flags).sort(),i:G.inventory})`);
@@ -559,19 +562,19 @@ guard('到达结局清除存档', () => {
 section('11. 遗物与称呼碎片');
 guard('单局集齐五件', () => {
   run(`T.wipe(); G=null; startGame();
-       T.tap('arrival','婚期账本'); T.tap('gate-ledger','记住'); T.tap('arrival','进入挂着白灯笼');
-       T.tap('courtyard','是哪三条规矩'); T.tap('rules','应下规矩'); T.tap('first-call','守住');
-       T.tap('courtyard','去西厢');
-       T.tap('west-room','取走父亲的信');  T.tap('evidence-father','记住');
-       T.tap('west-room','取走夫家的信');  T.tap('evidence-husband','记住');
-       T.tap('west-room','没有抬头');      T.tap('evidence-personal','空白');
-       T.tap('west-room','合上箱子');
-       T.tap('courtyard','去东厢新房');
-       T.tap('east-room','取走纸鸢');      T.tap('kite-clue','收好');
-       T.tap('east-room','退出新房');
-       T.tap('courtyard','去后院祠堂');    T.tap('shrine-room','火盆');
-       T.tap('burning','抢回残页');
-       T.tap('shrine-room','退出祠堂')`);
+       T.tap('arrival','read-ledger'); T.tap('gate-ledger','back'); T.tap('arrival','enter');
+       T.tap('courtyard','rules'); T.tap('rules','agree'); T.tap('first-call','silence');
+       T.tap('courtyard','west');
+       T.tap('west-room','take-father');    T.tap('evidence-father','back');
+       T.tap('west-room','take-husband');   T.tap('evidence-husband','back');
+       T.tap('west-room','take-personal');  T.tap('evidence-personal','back');
+       T.tap('west-room','leave');
+       T.tap('courtyard','east');
+       T.tap('east-room','kite');           T.tap('kite-clue','keep');
+       T.tap('east-room','leave');
+       T.tap('courtyard','shrine');         T.tap('shrine-room','burn');
+       T.tap('burning','return');
+       T.tap('shrine-room','leave')`);
   const missing = run(`Object.keys(ITEMS).filter(k=>G.inventory.indexOf(k)<0)`);
   check('缺失遗物', missing.length ? missing.join(',') : '(无)', '(无)');
   check('五件不重复', run(`G.inventory.length`), run(`new Set(G.inventory).size`));

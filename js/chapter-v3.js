@@ -376,6 +376,9 @@ function compileScene(id){
       text=substituteName(text);
       if(G.rite>=4) text+='<br><br><span class="rited">你几乎能抢在别人前面，把下面那句话说完。</span>';
       const choices=(d.choices||[]).filter(choiceAvailable).map(choice=>({
+        /* id 与 rawLabel 稳定: 侵蚀只改写 text, 测试按 id 定位而非按文案 */
+        id:choice.id,
+        rawLabel:choice.label,
         text:choice.label,
         mood:choice.mood||(/禁忌|违反|沉默/.test(choice.label)?'danger':null),
         action(){

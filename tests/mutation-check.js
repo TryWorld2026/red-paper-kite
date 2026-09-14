@@ -136,8 +136,8 @@ const MUTANTS = [
   {
     id: 'O-文本-重访差量失效',
     file: 'js/chapter-v3.js',
-    from: `      let text = (again && d.text.again) ? d.text.again : d.text.first;`,
-    to: `      let text = d.text.first;`,
+    from: `      const raw = again ? (d.text.again!=null ? d.text.again : d.text.first) : d.text.first;`,
+    to: `      const raw = d.text.first;`,
     expect: ['8.'],
   },
 
