@@ -316,7 +316,7 @@ function showGallery(){
     const e=ENDINGS_V3[id]; const un=ends.includes(id);
     const card=document.createElement('div');
     card.className='gcard'+(un?' unlocked':'');
-    const locked=fell?'尚未见证。你不必再来一次——这一种已经发生过了。':'尚未见证。换一种方式记住她,再来一次。';
+    const locked=fell?'尚未见证。你不必再来一次——这一种已经发生过了。':'尚未见证。换一种方式记住她，再来一次。';
     card.innerHTML=`
       <div class="gname">${un?e.name:'？ ？ ？'}</div>
       <div class="gdesc">${un?e.text:locked}</div>
