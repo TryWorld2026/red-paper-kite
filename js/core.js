@@ -165,7 +165,10 @@ function readRelic(id){
 
 /* ---------- 打字机(纯渲染,不做随机异变) ---------- */
 function renderText(text, done){
-  el('narration').innerHTML='<span class="cursor"></span>';
+  const box=el('narration');
+  /* 打字机每 ~30ms 改写一次 innerHTML; 不挂 aria-busy, 读屏会逐字重播整段 */
+  box.setAttribute('aria-busy','true');
+  box.innerHTML='<span class="cursor"></span>';
   if(typeTimer) clearTimeout(typeTimer);
   G.typewriter=true;
   const tokens=[]; let buf='';
@@ -182,8 +185,13 @@ function renderText(text, done){
   }
   let acc=''; let idx=0;
   el('narration').innerHTML=acc+'<span class="cursor"></span>';
+  function settle(finalHtml){
+    const box=el('narration');
+    box.innerHTML=finalHtml;
+    box.setAttribute('aria-busy','false');   /* 此刻才让读屏播报完整一段 */
+  }
   function step(){
-    if(idx>=segs.length){ G.typewriter=false; el('narration').innerHTML=acc; if(done)done(); return; }
+    if(idx>=segs.length){ G.typewriter=false; settle(acc); if(done)done(); return; }
     const s=segs[idx]; acc+=s.html; idx++;
     el('narration').innerHTML=acc+'<span class="cursor"></span>';
     el('narration').scrollTop=el('narration').scrollHeight;
@@ -194,7 +202,7 @@ function renderText(text, done){
   el('narration').onclick=function(){
     if(G.typewriter){
       if(typeTimer) clearTimeout(typeTimer);
-      el('narration').innerHTML=segs.map(s=>s.html).join('');
+      settle(segs.map(s=>s.html).join(''));
       G.typewriter=false; el('narration').onclick=null; if(done)done();
     }
   };
@@ -208,6 +216,7 @@ function renderChoices(choices){
     b.className='choice';
     if(c.mood) b.classList.add('mood-'+c.mood);
     b.innerHTML=c.text;
+    b.setAttribute('aria-disabled', c.disabled?'true':'false');
     if(c.disabled) b.classList.add('disabled');
     else b.onclick=function(){ Sound.select(); c.action(); };
     box.appendChild(b);

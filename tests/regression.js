@@ -27,13 +27,24 @@ function makeClassList(){
   };
 }
 function makeEl() {
-  return {
-    style: {}, innerHTML: '', textContent: '', scrollTop: 0, scrollHeight: 0, onclick: null,
+  const e = {
+    style: {}, _html: '', textContent: '', scrollTop: 0, scrollHeight: 0, onclick: null,
     className: '',
+    attrs: {}, kids: [],
+    setAttribute(k, v) { this.attrs[k] = String(v); },
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
     classList: makeClassList(),
-    children: { length: 0 },
-    appendChild() {}, addEventListener() {}, scrollIntoView() {}, remove() {},
+    appendChild(c) { this.kids.push(c); return c; },
+    addEventListener() {}, scrollIntoView() {}, remove() {},
   };
+  /* 写入 innerHTML 时清空子节点, 与真实 DOM 一致 —— 否则 kids 跨渲染累积 */
+  Object.defineProperty(e, 'innerHTML', {
+    get() { return e._html; },
+    set(v) { e._html = v; e.kids.length = 0; },
+  });
+  /* 让"检查渲染出的按钮属性"成为可能, 而不是空断言 */
+  Object.defineProperty(e, 'children', { get() { return e.kids; } });
+  return e;
 }
 const elements = {};
 const store = {};
@@ -63,10 +74,10 @@ for (const rel of SCRIPTS) {
 
 /* ---------- 测试驱动 ---------- */
 vm.runInContext(`
-/* 打字机与选项渲染拖慢且与逻辑无关, 直接短路; 但保留一份"上屏文本"快照供泄漏检查 */
+/* 打字机拖慢且与逻辑无关, 直接短路; 但保留一份"上屏文本"快照供泄漏检查。
+   renderChoices 不短路: 桩 DOM 已能收集子节点, 无障碍属性要靠它验。 */
 T.screen = { narration: '', tips: [] };
 renderText = function (text, done) { T.screen.narration = text; if (done) done(); };
-renderChoices = function () {};
 const _showTips = showTips;
 showTips = function (tips) { _showTips(tips); T.screen.tips = (tips || []).map(t => t.text); };
 
@@ -863,9 +874,9 @@ guard('500 局随机路线', () => {
 });
 
 /* =====================================================================
-   18. DOM 契约: 脚本要改的每个节点必须真的存在于页面里
+   18. DOM 契约与无障碍外壳
    ===================================================================== */
-section('18. DOM 契约');
+section('18. DOM 契约与无障碍');
 guard('界面侵蚀不会改到空气', () => {
   /* 桩的 getElementById 会凭空造元素, 所以"引用了页面里不存在的 id"
      这类 bug 在逻辑测试里永远绿 —— 锚点失守就因此静默失效过一次。 */
@@ -882,6 +893,35 @@ guard('界面侵蚀不会改到空气', () => {
   JSON.parse(run(`JSON.stringify(Object.keys(TOPBAR_HONEST))`)).forEach(id => used.add(id));
   const missing = [...used].filter(id => !present.has(id)).sort();
   check('页面里不存在的引用 id', missing.length ? missing.join(',') : '(无)', '(无)');
+});
+guard('无障碍外壳不得被随手删掉', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const css  = fs.readFileSync(path.join(ROOT, 'style.css'), 'utf8');
+  check('允许玩家缩放', /user-scalable=no|maximum-scale=1(\.0)?\b/.test(html) ? '禁用了缩放' : '(允许)', '(允许)');
+  check('meta description', /name="description"/.test(html), 'true');
+  check('og:title 分享卡', /property="og:title"/.test(html), 'true');
+  check('favicon', /rel="icon"/.test(html), 'true');
+  check('自定义焦点环(通用规则)', /^:focus-visible\s*\{[^}]*outline:/m.test(css), 'true');
+  check('减动效偏好', /prefers-reduced-motion/.test(css), 'true');
+  const rm = (css.match(/@media\(prefers-reduced-motion:reduce\)\{([\s\S]*)/) || ['', ''])[1];
+  check('减动效确实关掉闪烁与飘落',
+    /\.cursor\{animation:none/.test(rm) && /\.kite-particle\{display:none/.test(rm), 'true');
+  check('正文有 aria-live', /id="narration"[^>]*aria-live="polite"/.test(html), 'true');
+});
+guard('锁门说明项在渲染层确实不可点', () => {
+  run(`T.wipe(); G=null; startGame(); T.tap('arrival','read-ledger'); T.tap('gate-ledger','back');
+       T.tap('arrival','enter'); addEvidence('paternal',1); renderScene()`);
+  const btns = run(`JSON.stringify(document.__els['choices'].kids.map(b=>({
+      aria:b.getAttribute('aria-disabled'), cls:b.classList.contains('disabled'), click:typeof b.onclick })))`);
+  const list = JSON.parse(btns);
+  const lock = list.find(b => b.aria === 'true');
+  check('锁门项存在', !!lock, 'true');
+  check('锁门项 aria-disabled=true', lock && lock.aria, 'true');
+  check('锁门项带 disabled 类', lock && lock.cls, 'true');
+  check('锁门项没有点击处理', lock && lock.click, 'object');
+  const live = list.find(b => b.aria === 'false');
+  check('可点项 aria-disabled=false', !!live, 'true');
+  check('可点项确实绑了处理', live && live.click, 'function');
 });
 
 console.log(`\n${'='.repeat(66)}`);

@@ -269,3 +269,34 @@ body.rite-critical::after{box-shadow:inset 0 0 260px 130px rgba(80,10,8,.6), ins
   .stat{font-size:12px;}
   .hour-display{font-size:12px;padding-left:8px;}
 }
+
+/* ============ 无障碍 ============ */
+/* 焦点环：不依赖浏览器 UA 默认样式，键盘操作时必须看得见 */
+:focus-visible{
+  outline:2px solid var(--vermilion);
+  outline-offset:3px;
+  border-radius:2px;
+}
+.choice:focus-visible,.menu-btn:focus-visible,.topbar .tbtn:focus-visible,
+.ending-btn:focus-visible,.gallery-close:focus-visible,.inv-item:focus-visible,
+.gcard:focus-visible{
+  outline:2px solid var(--vermilion);
+  outline-offset:3px;
+}
+
+/* 触摸目标：顶栏与遗物栏补足到 44px */
+.topbar .tbtn{min-height:44px;display:inline-flex;align-items:center;}
+.inv-item{min-height:44px;display:inline-flex;align-items:center;}
+.inventory{min-height:52px;}
+
+/* 减少动效：关掉闪烁、飘落、位移与闪白。
+   仪式渗透的色调与暗角是"进度可见性"而非装饰，保留。 */
+@media(prefers-reduced-motion:reduce){
+  .cursor{animation:none;opacity:.85;}
+  .kite-particle{display:none;}
+  .shake,.deathflash{animation:none;}
+  body{transition:none;}
+  .choice,.menu-btn,.topbar .tbtn,.inv-item,.ending-btn,.gallery-close{transition:none;}
+  .choice:hover{transform:none;}
+  .narration{scroll-behavior:auto;}
+}

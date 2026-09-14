@@ -2,8 +2,14 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>红纸鸢 · 归名</title>
+<meta name="description" content="中式规则恐怖文字游戏。民国二十三年，浙东槐阴村：你来迎亲，却没有人肯告诉你新娘在哪里。找回她才能离村，而规矩说，别提她的名字。">
+<meta property="og:title" content="红纸鸢 · 归名">
+<meta property="og:description" content="规则不是障碍，规则是她的尸体。你为了找回失踪的新娘而遵守规矩，最后会发现：规矩一直在替你完成这场婚礼。">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#1c1410">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%231c1410'/><path d='M16 5 L26 16 L16 27 L6 16 Z' fill='none' stroke='%23a01818' stroke-width='2'/><path d='M16 5 L16 27 M6 16 L26 16' stroke='%23a01818' stroke-width='1.2'/></svg>">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,22 +18,22 @@
   <!-- 顶栏 -->
   <div class="topbar">
     <div class="stat-bar">
-      <div class="hour-display"><span class="hour-name" id="hour-name"></span><span class="candle-icon" id="candle-icon"></span></div>
+      <div class="hour-display" aria-label="当前时辰"><span class="hour-name" id="hour-name"></span><span class="candle-icon" id="candle-icon" aria-hidden="true"></span></div>
     </div>
     <div>
-      <button class="tbtn" id="btn-save">存档</button>
-      <button class="tbtn" id="btn-load">读档</button>
-      <button class="tbtn" id="btn-menu">主菜单</button>
+      <button class="tbtn" id="btn-save" aria-label="保存当前进度">存档</button>
+      <button class="tbtn" id="btn-load" aria-label="读取上次进度">读档</button>
+      <button class="tbtn" id="btn-menu" aria-label="返回主菜单">主菜单</button>
     </div>
   </div>
 
   <!-- 主舞台 -->
   <div class="stage" id="stage">
-    <div class="scene-title" id="scene-title"></div>
-    <div class="narration" id="narration"></div>
-    <div id="tip-area"></div>
-    <div class="choices" id="choices"></div>
-    <div class="relic-read hidden" id="relic-read"></div>
+    <div class="scene-title" id="scene-title" aria-live="off"></div>
+    <div class="narration" id="narration" role="log" aria-live="polite" aria-atomic="true" tabindex="0"></div>
+    <div id="tip-area" aria-live="polite"></div>
+    <div class="choices" id="choices" role="group" aria-label="可选行动"></div>
+    <div class="relic-read hidden" id="relic-read" role="region" aria-label="遗物原文" aria-live="polite"></div>
   </div>
 
   <!-- 遗物栏 -->
