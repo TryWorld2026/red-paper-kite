@@ -44,6 +44,8 @@ const CHAPTER_V3 = {
       again:[
         { when:{rite:3},
           text:'红绳已经不在喜婆手里了。<br><br>你想不起它是什么时候系上的，也只记得自己从未答应过。' },
+        { when:{evidenceTotal:1},
+          text:'红绳仍在喜婆手中，绳结却已经打好。<br><br>她看了一眼你袖中的纸，没有伸手接：<span class="ghost">「你连一样礼数都没替她行过。牌位前，轮不到你开口。」</span>' },
         { text:'红绳仍在喜婆手中，绳结却已经打好。<br><br>仿佛你离开的这一会儿，有人替你系上过，又解开。' }
       ]
     },
@@ -55,7 +57,10 @@ const CHAPTER_V3 = {
       { id:'stele', label:'退回村口的石碑前', next:'arrival' },
       { id:'margins', label:'低头看你自己的婚书', next:'margins' },
       { id:'reunion', label:'轿帘后传来纸摩擦的声音', next:'reunion', condition:{evidenceTotal:3} },
-      { id:'naming', label:'天将明，走到牌位前替她定名', next:'naming', condition:{evidenceTotal:1} }
+      { id:'naming', label:'天将明，走到牌位前替她定名', next:'naming', condition:{evidenceTotal:1, rite:2} },
+      /* 门就在那里，且明说为什么按不动：结局条件不许不透明 */
+      { id:'naming-locked', label:'牌位前围着一圈人手。喜婆没有让开：「礼数一行未行，此处轮不到你开口。」',
+        condition:{evidenceTotal:1, riteUnder:2}, disabled:true }
     ]
   },
 
@@ -360,6 +365,7 @@ function condMet(c){
   if(c.notItem && hasItem(c.notItem)) return false;
   if(c.memory && !getMemory()) return false;
   if(c.rite!=null && G.rite<c.rite) return false;
+  if(c.riteUnder!=null && G.rite>=c.riteUnder) return false;
   if(c.minEvidence){
     const met=Object.keys(c.minEvidence).some(k=>evidenceScore(k)>=c.minEvidence[k]);
     if(!met) return false;
@@ -509,6 +515,7 @@ function compileScene(id){
         id:choice.id,
         rawLabel:choice.label,
         text:d.noErode?choice.label:erodeLabel(choice),
+        disabled:!!choice.disabled,
         mood:choice.mood||(/禁忌|违反|沉默/.test(choice.label)?'danger':null),
         action(){
           if(choice.once) setFlag('choice-'+choice.id);

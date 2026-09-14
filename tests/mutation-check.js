@@ -68,8 +68,16 @@ const MUTANTS = [
   {
     id: 'F-门控-定名不再要求证据',
     file: 'js/chapter-v3.js',
-    from: `next:'naming', condition:{evidenceTotal:1} }`,
-    to: `next:'naming' }`,
+    from: `next:'naming', condition:{evidenceTotal:1, rite:2} },`,
+    to: `next:'naming', condition:{rite:2} },`,
+    expect: ['4.'],
+  },
+  {
+    id: 'F2-门控-定名不再要求礼数',
+    file: 'js/chapter-v3.js',
+    desc: '去掉 rite>=2 —— 速通玩家又能以渗透 0 通关, 措辞侵蚀/代笔/锚点失守全部不可见',
+    from: `next:'naming', condition:{evidenceTotal:1, rite:2} },`,
+    to: `next:'naming', condition:{evidenceTotal:1} },`,
     expect: ['4.'],
   },
   {

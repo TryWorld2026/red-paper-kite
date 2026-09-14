@@ -126,10 +126,17 @@ T.court = function () { T.tap('courtyard', 'rules'); T.tap('rules', 'agree'); };
  *  marriage : 夫证 >=2 → 正婚;  silent 则走"喜婆替你落笔"兜底
  *  loss     : 自称 >=2 → 失讳
  */
+/* 定名门要求礼数已行两样：应下规矩(+1) 与 祠堂问牌位(+1)。
+   纯守规矩也能开门 —— 仪式本就靠服进而非冒犯推进。 */
+T.rites = function () {
+  T.tap('courtyard','shrine'); T.tap('shrine-room','ask'); T.tap('tablet-talk','back'); T.tap('shrine-room','leave');
+};
+
 T.route = function (kind) {
   if (kind === 'return') {
     T.enter(); T.court();
     T.tap('first-call', 'silence');
+    T.rites();
     T.tap('courtyard', 'west');
     T.tap('west-room', 'take-father');
     T.tap('evidence-father', 'back');
@@ -145,10 +152,7 @@ T.route = function (kind) {
     T.tap('west-room', 'take-husband');
     T.tap('evidence-husband', 'back');
     T.tap('west-room', 'leave');
-    T.tap('courtyard', 'shrine');
-    T.tap('shrine-room', 'ask');
-    T.tap('tablet-talk', 'back');
-    T.tap('shrine-room', 'leave');
+    T.rites();
     T.tap('courtyard', 'naming');
     T.tap('naming', 'marital');
     return;
@@ -157,6 +161,7 @@ T.route = function (kind) {
     /* 只读了账本、什么都没深究的新郎: 系统会替他写完这个名字 */
     T.enter(); T.court();
     T.tap('first-call', 'silence');
+    T.rites();
     T.tap('courtyard', 'naming');
     T.tap('naming', 'let-them');
     return;
@@ -165,6 +170,7 @@ T.route = function (kind) {
     T.enter(); T.court();
     T.tap('first-call', 'answer');
     T.tap('answered-call', 'step-back');
+    T.rites();
     T.tap('courtyard', 'west');
     T.tap('west-room', 'take-personal');
     T.tap('evidence-personal', 'back');
@@ -188,6 +194,7 @@ T.route = function (kind) {
     T.tap('east-room', 'kite');
     T.tap('kite-clue', 'keep');
     T.tap('east-room', 'leave');
+    T.rites();
     T.tap('courtyard', 'reunion');
     T.tap('reunion', 'correct');
     return;
@@ -235,9 +242,11 @@ function guard(name, fn) {
 section('1. 场景图静态不变量');
 const graph = runJson(`(function(){
   const ids=Object.keys(CHAPTER_V3), bad=[], allOnce=[], unreachable=[];
+  /* disabled 项是"锁门说明"，不是可导航的边 */
+  const nav=id=>(CHAPTER_V3[id].choices||[]).filter(c=>!c.disabled);
   ids.forEach(id=>{
-    const cs=CHAPTER_V3[id].choices||[];
-    if(!cs.length) bad.push(id+':无任何选项');
+    const cs=nav(id);
+    if(!CHAPTER_V3[id].choices.length) bad.push(id+':无任何选项');
     cs.forEach(c=>{ if(!ENDINGS_V3[c.next] && !CHAPTER_V3[c.next]) bad.push(id+'.'+c.id+' -> 未知目标 '+c.next); });
     /* 全是一次性选项的场景 = 重访必死 */
     if(cs.length && cs.every(c=>c.once)) allOnce.push(id);
@@ -245,7 +254,7 @@ const graph = runJson(`(function(){
   /* 从 arrival 出发的可达闭包 */
   const seen=new Set(['arrival']), q=['arrival'];
   while(q.length){ const id=q.shift();
-    (CHAPTER_V3[id].choices||[]).forEach(c=>{ const n=c.next;
+    nav(id).forEach(c=>{ const n=c.next;
       if(CHAPTER_V3[n]&&!seen.has(n)){seen.add(n);q.push(n);} });
   }
   ids.forEach(id=>{ if(!seen.has(id)) unreachable.push(id); });
@@ -254,16 +263,16 @@ const graph = runJson(`(function(){
      但它自己所有出边都通向结局 —— 所以 naming 同样是单向门。 */
   const terminal=new Set(); let grew=true;
   while(grew){ grew=false;
-    ids.forEach(id=>{ const cs=CHAPTER_V3[id].choices||[];
+    ids.forEach(id=>{ const cs=nav(id);
       if(!cs.length || terminal.has(id)) return;
       if(cs.every(c=>ENDINGS_V3[c.next]||terminal.has(c.next))){ terminal.add(id); grew=true; } }); }
   const noExit=[...terminal].filter(id=>id!=='loss-question');
   /* 中庭曾是单程票：进宅后再也回不到村口石碑 */
   const fromCourt=new Set(['courtyard']),qc=['courtyard'];
   while(qc.length){ const id=qc.shift();
-    (CHAPTER_V3[id].choices||[]).forEach(c=>{ if(CHAPTER_V3[c.next]&&!fromCourt.has(c.next)){fromCourt.add(c.next);qc.push(c.next);} }); }
+    nav(id).forEach(c=>{ if(CHAPTER_V3[c.next]&&!fromCourt.has(c.next)){fromCourt.add(c.next);qc.push(c.next);} }); }
   const oneWay=!fromCourt.has('arrival');
-  const endsWithEntry=Object.keys(ENDINGS_V3).filter(e=>ids.some(id=>(CHAPTER_V3[id].choices||[]).some(c=>c.next===e)));
+  const endsWithEntry=Object.keys(ENDINGS_V3).filter(e=>ids.some(id=>nav(id).some(c=>c.next===e)));
   return JSON.stringify({bad:bad,allOnce:allOnce,unreachable:unreachable,noExit:noExit,oneWay:oneWay,
     endsWithEntry:endsWithEntry,sceneCount:ids.length,endingCount:Object.keys(ENDINGS_V3).length});
 })()`);
@@ -312,7 +321,10 @@ guard('照面场景在证据 >=3 时开放', () => {
   run(`T.route('reunion')`);
   check('未直接落到结局', run('T.ended'), 'null');
   check('纠正称呼已生效', run('hasFlag("correctedName")'), 'true');
-  check('纠正后仪式渗透回落', run('G.rite'), '0');
+  /* 断言"纠正使渗透降一档", 而不是写死绝对值 —— 定名门提高后路线要先行两礼 */
+  check('纠正后仪式渗透回落一档',
+    run(`(function(){ const r=G.transcript.filter(e=>e.kind==='rite').map(e=>e.value);
+          return r.length>=2 ? (r[r.length-1] === r[r.length-2]-1 ? 'true':'false') : '(无 rite 变化记录)'; })()`), 'true');
 });
 
 /* =====================================================================
@@ -326,12 +338,35 @@ guard('零证据时 courtyard 不给定名', () => {
   check('无照面选项', run(`T.has('courtyard','reunion')`), 'false');
   check('仍有出路(不锁死)', run(`currentScenes().courtyard.run().choices.length>0`), 'true');
 });
-guard('一类证据即可定名, 三类的证据才可见照面', () => {
+guard('礼数行满但证据为零, 定名门仍不开(两道门各自有效)', () => {
+  /* 上一节零证据时渗透也是 0, 光靠那一条判不出"证据门是否还在";
+     这里把 rite 补足, 单独暴露证据要求。 */
+  run(`T.wipe(); G=null; startGame(); G.rite=5`);
+  check('证据仍为零', run('T.total()'), '0');
+  check('不给定名', run(`T.has('courtyard','naming')`), 'false');
+  check('也不给锁门说明', run(`T.has('courtyard','naming-locked')`), 'false');
+});
+guard('证据齐但礼数未行时, 门开着但写明白为何不能进', () => {
   run(`T.enter({ledger:false}); addEvidence('paternal',1)`);
-  check('1 类证据可定名', run(`T.has('courtyard','naming')`), 'true');
+  check('礼数未行不给定名', run(`T.has('courtyard','naming')`), 'false');
+  check('锁门说明可见', run(`T.has('courtyard','naming-locked')`), 'true');
+  check('锁门说明确实不可点',
+    run(`currentScenes().courtyard.run().choices.find(c=>c.id==='naming-locked').disabled`), 'true');
   check('1 类证据不可照面', run(`T.has('courtyard','reunion')`), 'false');
+  run(`G.rite=2`);
+  check('礼数补足即可定名', run(`T.has('courtyard','naming')`), 'true');
+  check('开门后锁门说明让位', run(`T.has('courtyard','naming-locked')`), 'false');
   run(`addEvidence('marital',1); addEvidence('personal',1)`);
   check('3 类证据可照面', run(`T.has('courtyard','reunion')`), 'true');
+});
+guard('零礼数也能开门: 仪式靠服进而非冒犯推进', () => {
+  /* 全程不违一条规矩, 只应规矩 + 问牌位 两礼, 即可抵达三个结局 */
+  run(`T.wipe(); T.ended=null; G=null; startGame();
+       T.tap('arrival','read-ledger'); T.tap('gate-ledger','back'); T.tap('arrival','enter');
+       T.tap('courtyard','rules'); T.tap('rules','agree'); T.tap('first-call','silence');
+       T.tap('courtyard','shrine'); T.tap('shrine-room','ask'); T.tap('tablet-talk','back'); T.tap('shrine-room','leave')`);
+  check('纯守规矩两礼即开门', run(`T.has('courtyard','naming')`), 'true');
+  check('且未违反任何规矩', run(`hasFlag('answeredName')||hasFlag('liftedVeil')`), 'false');
 });
 guard('定名前不得有零选项死路', () => {
   check('沉默兜底始终可用', run(`T.has('naming','let-them')`), 'true');
@@ -357,6 +392,8 @@ guard('可重复选项不得刷出隐藏状态', () => {
 guard('误点定名不再被迫通关,可退回补证据', () => {
   run(`T.wipe(); G=null; startGame();
        T.tap('arrival','read-ledger'); T.tap('gate-ledger','back'); T.tap('arrival','enter');
+       T.tap('courtyard','rules'); T.tap('rules','agree'); T.tap('first-call','silence');
+       T.tap('courtyard','shrine'); T.tap('shrine-room','ask'); T.tap('tablet-talk','back'); T.tap('shrine-room','leave');
        T.tap('courtyard','naming')`);
   check('只有 1 点证据时仍可退出', run(`T.has('naming','not-yet')`), 'true');
   check('退出前未触发任何结局', run('T.ended'), 'null');
