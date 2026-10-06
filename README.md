@@ -1,182 +1,186 @@
-# 红纸鸢 · 归名
+# Red Paper Kite · 红纸鸢 · 归名
 
-一款中式恐怖文字冒险游戏。单线、一周目可通关，恐怖全部由文字承担。
+A Chinese-horror text adventure. Single route, completable in one playthrough, and all of the horror carried by the writing.
 
-民国二十三年，浙东槐阴村。你来迎亲，却没有人肯告诉你新娘在哪里。村口石碑上覆着红纸，纸上只一句：
+The 23rd year of the Republic, Huaiyin Village in eastern Zhejiang. You have come to fetch a bride, and no one will tell you where she is. The stone marker at the village entrance is covered with red paper, bearing a single line:
 
-> 新妇未至，婿不得归。
+> The bride has not arrived; the groom may not return.
 
-你要在天亮前找到她。而喜婆给你的三条规矩里，头一条就是——别提她的名字。
+You must find her before dawn. And the first of the three rules the matchmaker gave you is this — do not speak her name.
 
 ![License](https://img.shields.io/badge/license-MIT-C0452F?style=flat-square)
-![零依赖](https://img.shields.io/badge/dependencies-none-2E5E8C?style=flat-square)
+![Zero dependencies](https://img.shields.io/badge/dependencies-none-2E5E8C?style=flat-square)
 
-## 核心设计
+<a href="README.zh-CN.md"><strong>简体中文（原文）</strong></a>
 
-规则不是障碍，规则是她的尸体。玩家为了带走失踪的新娘而寻找规则，最后会发现：规则一直在替他完成这场婚礼。
+> **On this translation**: the game's central mechanic is Chinese naming custom — the three kinds of name a woman can be recorded under (`父名` a name given by her father, `夫名` one given by her husband, `自名` one she wrote for herself) and the ritual propriety (`礼数`) that governs who may speak and when. Both are kept in Chinese with an explanation at first use, because translating them would erase the thing the game is about. The [Simplified Chinese version](README.zh-CN.md) is the original.
 
-这作真正被夺走的是**你自己说话的权利**。
+## Core design
 
-- **不显示理智 / 阴气**。没有任何生存数值、没有进度条、没有 Game Over 弹窗。
-- **两个隐藏状态**：
-  - `rite`（仪式渗透，0–5）——绝不显示数字，但门控措辞侵蚀、界面失守与节点剥夺
-  - `evidence`（名字证据，三类：父名 / 夫名 / 自名）——决定她最终被称为什么
-- **称呼即战栗**：渗透 2 起，正文里的"她"被你此刻最常用的那个称呼替换；选项措辞也开始用礼数的口吻替你念出来。渗透满格后，连叙述都不再对你说"你"。
-- **违规有账**：应门外之声、掀轿帘，代价不是掉数值，而是不可逆的痕迹——她第一次照面时改用你那一声的语调叫你的名字；到了寅时你才发现牌位空格上已有一划不是你落的。
-- **回看账页**（中庭"低头看你自己的婚书"）：每条违规、每一次被代笔都在此落成一行可核对的字。这一面**永远诚实**——被改写的证据就不算证据。
-- **界面分层失守**：顶栏与遗物栏随渗透改口（存档→存名），但主菜单与结局录是最后的现实锚点，只在渗透极高或已被代笔时才失守。
-- **换字不夺权**：侵蚀只改写显示文案，绝不改动选项指向、门控与结局条件——你做的始终是你原本要做的选择，变的只是这句话由谁开口。唯一的例外是节点剥夺，它分两类：**明示代笔**（"沉默。喜婆替你落笔"——选项已写明由谁落笔，点了必然入账）与**静默接管**（你以为只是在看礼词，其实已被接管——须两条预警铺满且渗透达标）。
-- **寻回她的主体性**：证明你找到的是一个人而不是一桩婚事，看她会不会开口问你一个问题。玩家亲口说出的话（对她的纠正、《失讳》里的自白）仪式不许接管。
+The rules are not obstacles; the rules are her corpse. The player hunts for rules in order to carry off the missing bride, and eventually discovers that the rules have been completing this wedding on his behalf all along.
 
-## 开始游戏
+What this game actually takes from you is **your own right to speak**.
 
-项目不需要安装依赖或构建。
+- **No sanity, no yin meter.** No survival stats, no progress bar, no game-over dialog.
+- **Two hidden states**:
+  - `rite` (ritual permeation, 0–5) — the number is never displayed, but it drives gate-wording erosion, interface failure, and node usurpation
+  - `evidence` (name evidence, three kinds: father's / husband's / self-given) — decides what she is ultimately called
+- **The form of address is the horror**: from permeation 2 onward, every "she" in the prose is replaced by whichever form of address you have used most; the wording of the options begins reciting for you in the tone of ritual propriety. At full permeation, even the narration stops saying "you".
+- **Transgression leaves a record**: answering the voice outside, or lifting the sedan curtain — the cost is not a stat drop but an irreversible trace. The first time she appears she addresses you in the exact tone of that one word you used; by the hour of the Tiger you will notice the blank on the memorial tablet already carries a stroke you did not write.
+- **The ledger** (the courtyard, "lower your head and read your own marriage contract"): every transgression and every instance of being written for you lands here as a line you can check. This surface is **always honest** — rewritten evidence does not count as evidence.
+- **Layered interface failure**: the top bar and relic row change their wording as permeation rises (save → record name), but the main menu and the ending record are the last anchors of reality, failing only at extreme permeation or after you have been written for.
+- **Wording changes, power does not**: erosion only rewrites displayed text and never touches what an option points to, the gates, or the ending conditions — you always make the choice you meant to make; only the voice speaking it changes. The single exception is node usurpation, which comes in two forms: **declared proxy** ("Silence. The matchmaker will write it for you" — the option states who is writing, so choosing it always enters the ledger) and **silent takeover** (you think you are only reading ritual phrasing while it has already taken over — requires both warnings to be shown and permeation high enough).
+- **Recovering her agency**: proving you found a person rather than a wedding — watch whether she asks you a question. Anything the player says out loud (a correction to her, the confession in "Loss of Name") may not be taken over by the ritual.
+
+## Playing
+
+The project needs no dependencies and no build step.
 
 ```bash
 node server.js
 ```
 
-然后打开 `http://localhost:8080`。也可以直接打开 `index.html`，但本地服务器更适合测试音频与存档行为。
+Then open `http://localhost:8080`. You can also open `index.html` directly, but the local server is better for testing audio and save behavior.
 
-## 三条规矩
+## The three rules
 
-| 规矩 | 守住会怎样 | 破了会怎样 | 破了的账落在哪 |
+| Rule | If you keep it | If you break it | Where the bill lands |
 | --- | --- | --- | --- |
-| 听见门外叫名，不许应 | 它就没法学你回答 | 它开始替你回答 | 第一次照面时，她不再念礼词，改用你那一声的语调叫你的名字 |
-| 轿帘落下，不许揭 | 空白婚书不会填上你的名字 | 双方姓名都是你的 | 寅时到了牌位前你才发现：空格上已有一划，笔锋从右向左来 |
-| 天未亮，不许提她的旧名 | 名字由别人替你写完 | 你能念出她自写的那个字 | — |
+| When you hear your name called from outside, do not answer | It never learns to answer for you | It starts answering for you | At the first meeting, she no longer recites the ritual phrasing and instead calls you in the tone of that one word you used |
+| When the sedan curtain falls, do not lift it | The blank marriage contract will not fill in your name | Both names on it become yours | At the hour of the Tiger, standing at the tablet, you discover the blank already carries a stroke, written right to left |
+| Before dawn, do not speak her old name | The name is finished for you by someone else | You can say the one character she wrote for herself | — |
 
-三条规矩都为"活人好"。规矩若不护人，还会专门写下来么。
+All three rules are "for the living's sake." If a rule did not protect people, why would it be written down at all.
 
-违规的代价不是掉数值，而是**不可逆的痕迹**：它改变你此后读到的文字，并且每一条都记在婚书边角的回看账上（中庭"低头看你自己的婚书"），随时可核对。
+The cost of transgression is not a stat drop but **an irreversible trace**: it changes the text you read from then on, and every line is recorded in the margin of the marriage contract (the courtyard, "lower your head and read your own marriage contract"), checkable at any time.
 
-## 三个结局
+## The three endings
 
-结局不由分数决定，由**你用什么称呼了她**决定。
+The ending is not decided by a score. It is decided by **what you called her**.
 
-- **《归籍》** 你送她回了娘家。她确实离开了陈家，却被领回另一座登记户籍的宅门。她说：你把我送回去了，谢谢你。
-- **《正婚》** 你念出"陈门新妇"，所有矛盾忽然顺了。喜婆夸你是最懂礼数的新郎。一个月后你收到一封喜帖，寄件人一栏是你自己的字迹。**顺从得到奖赏，是这作里最恐怖的一件事。**
-- **《失讳》** 你只念她自写的那个字。她第一次不再念礼词，而是问你："既然记得我，你为什么还要娶我？"——"记得"也是一种占有。
+- **"Return to Her Registry" (归籍)** — You send her back to her natal home. She does leave the Chen household, only to be taken to another door that keeps household registration. She says: you sent me back. Thank you.
+- **"The Proper Marriage" (正婚)** — You say "new bride of the Chen door" and every contradiction suddenly resolves. The matchmaker praises you as the most etiquette-minded groom. A month later a wedding invitation arrives, and the sender's line is in your own handwriting. **Compliance being rewarded is the most frightening thing in this game.**
+- **"Loss of Name" (失讳)** — You say only the single character she wrote for herself. For the first time she does not recite the ritual phrasing but asks you: "If you remembered me, why did you still want to marry me?" — remembering is also a form of possession.
 
-**定名之前，礼数要先行满两样**（应下规矩、祠堂问牌位各一）。证据攥在手里却一行礼未行，中庭只会给你一句看得见、按不动的话：「礼数一行未行，此处轮不到你开口。」这不是关卡，是主题——仪式不靠冒犯推进，靠服进。
+**Before naming, two kinds of propriety must be satisfied first** (answering a call, and the ancestral-hall tablet interrogation — one each). Holding the evidence but having performed no propriety at all gets you nothing but a visible, unclickable line in the courtyard: "Not one rite performed; it is not your turn to speak." This is not a gate, it is the theme — ritual does not advance through transgression, it advances through submission.
 
-到了牌位前，什么名字都查不全的新郎仍有一条路：沉默着，喜婆替你落笔。那是《正婚》。
+Standing before the tablet, even a groom who knows no name at all still has one path: stay silent and let the matchmarker write it for you. That is "The Proper Marriage."
 
-## 项目结构
+## Project structure
 
 ```text
-index.html        页面结构、菜单与事件绑定
-style.css         宣纸古籍风视觉与仪式渗透氛围层
-server.js         零依赖 Node.js 静态服务器
+index.html        page structure, menus, event bindings
+style.css         xuan-paper and antique-book visuals, ritual permeation atmosphere layer
+server.js         zero-dependency Node.js static server
 
 js/
-  chapter-v3.js   第一章剧本数据（20 个场景）+ 场景编译器、措辞侵蚀、结局表、存档归一
-  core.js         引擎：状态、存档、打字机渲染、时辰、界面分层侵蚀、结局与结局录
-  items.js        五件遗物（物即称呼的碎片）
-  sound.js        Web Audio 音效与背景音乐
+  chapter-v3.js   chapter one script data (20 scenes) + scene compiler, wording erosion, ending table, save normalization
+  core.js         engine: state, saves, typewriter rendering, hour-of-day, layered interface erosion, endings and ending record
+  items.js        the five relics (objects are fragments of forms of address)
+  sound.js        Web Audio effects and background music
 
 docs/
-  refactor-design.md   v3 重构设计契约（前提、隐藏状态、完成定义）
+  refactor-design.md   v3 redesign contract (premises, hidden states, definition of done)
 
 tests/
-  regression.js        18 组回归断言
-  mutation-check.js    39 个变异体，验证回归测试确实会红
+  regression.js        18 regression assertion groups
+  mutation-check.js    39 mutants, verifying the regression suite actually goes red
 
-shiver.mp3        背景音乐
-网站二维码.png    项目二维码图片
+shiver.mp3        background music
+网站二维码.png    project QR code image
 ```
 
-剧本是数据驱动的：`CHAPTER_V3` 里每个场景声明 `text.first` / `text.again`、带 `condition` 与 `once` 的选项、以及 `effects`（flag / 证据 / 遗物 / 仪式渗透）。`compileScene` 把它编译成引擎可消费的 `run()`。写新章节只需加数据，不需要改引擎。
+The script is data-driven: every scene in `CHAPTER_V3` declares `text.first` / `text.again`, options carrying `condition` and `once`, and `effects` (flag / evidence / relic / ritual permeation). `compileScene` compiles it into a `run()` the engine can consume. Writing a new chapter means adding data, not changing the engine.
 
-场景到达时按 `HOUR_OF` 表**单调**推进时辰，任何路径都不会把钟拨回去。
+On arrival, the hour advances **monotonically** according to the `HOUR_OF` table; no path ever winds the clock back.
 
-## 测试
+## Tests
 
-### 回归测试
+### Regression tests
 
 ```bash
 node tests/regression.js
 ```
 
-覆盖 18 组断言，针对文字冒险特有的地雷——零选项死路、门控锁死、数值泄漏，以及本轮新增的"作者权"机制是否真的承重：
+Covers 18 groups of assertions aimed at the mines unique to text adventures — zero-option dead ends, gated locks, stat leakage — and at whether this round's new "author's rights" mechanism actually bears weight:
 
-1. 场景图静态不变量：无悬空跳转、无"选项全为一次性"的场景、全部场景自起点可达、**结局门前不得断掉退路**（按传递闭包判死路）、**进宅后仍须回得去村口**、三个结局均有入口
-2. 一次性选项耗尽后仍可离开（逐个场景构造最坏状态）
-3. 三种结局定向可达（含"什么都没深究"的沉默兜底路线）
-4. 寻名进度门控：证据与礼数**两道门各自有效**、礼数未行时锁门说明可见且不可点、纯守规矩两礼即开门、证据封顶不可刷、可重复选项不得刷出隐藏状态、误点定名可退回补证据
-5. 设计契约：状态里没有 `san`/`yin`，全程画面文本不含生存数值字样，渗透只以类名与措辞现身，追加句不得再引入裸"她"
-6. 渲染确定性：同一状态在多个渗透档下两次渲染逐字相同（临时把 `Math.random` 换成交替越阈序列，逼任何掷硬币实现露馅）
-7. 称呼渗透：阈值前后文本改写，且替换不破坏 HTML 标签
-8. 重访差量文本
-9. 时辰单调性（五条路线 + 随机播放）
-10. 存档归一化：脏类型、越界、非法场景 id、未知遗物 id；起点不覆盖已有进度
-11. 五件遗物单局皆可得且不重复
-12. 作者权侵蚀：渗透 2 起叙述性选项被改口但**不改指向与效果**、玩家说出口的话不被接管、满格后正文改口、且不破坏 HTML 标签
-13. 回看账（婚书边角）：账页永远诚实、必有出口、每条违规留一行、重访真比对行数（没变多就明说没变）
-14. 节点剥夺门槛：**明示代笔点了必然入账**（零预警零渗透也记）、**静默接管须两条预警且渗透达标**、一旦发生即入账并撼动锚点
-15. 界面分层侵蚀：顶栏改称但功能分毫不动、锚点只在渗透极高或被代笔后失守且新开一局复原、遗物栏措辞随渗透变而遗物本身不变
-16. 违规的不可逆代价：应门外之声与掀轿帘各改变后续文本，但**不改三种结局的可达性**
-17. 500 局随机播放：无死胡同、无不收敛、随机也能撞到全部三个结局，并打印**结局分布**作为观测量（顺从结局若成为压倒性默认值，这里会直接看见）
-18. DOM 契约与无障碍：脚本引用的每个 id 必须真的存在于 `index.html`（桩会凭空造元素，这类 bug 逻辑测试永远绿）；缩放/meta/og/favicon/焦点环/减动效不得被删；锁门项渲染层确实带 `aria-disabled` 且无点击处理
+1. Scene-graph static invariants: no dangling jumps, no scene whose options are all one-time, every scene reachable from the start, **no dead end before an ending** (checked by transitive closure), **still able to return to the village entrance after entering the house**, all three endings have an entrance
+2. Still able to leave after one-time options are exhausted (worst state constructed per scene)
+3. All three endings directionally reachable (including the silent fallback route where "nothing was investigated")
+4. Name-seeking progress gates: evidence and propriety are **two gates, each independently effective**, the locked explanation while propriety is unperformed is visible and unclickable, keeping only to the rules opens the gate with two rites, evidence is capped and cannot be farmed, repeatable options cannot farm hidden state, a misclick on naming can be undone to gather more evidence
+5. Design contract: no `san`/`yin` in state, no survival-stat wording anywhere on screen, permeation appears only through class names and wording, appended sentences may not reintroduce a bare "she"
+6. Render determinism: the same state rendered twice under multiple permeation levels is character-for-character identical (temporarily swapping `Math.random` for an alternating threshold-crossing sequence to expose any coin-flip implementation)
+7. Form-of-address permeation: text is rewritten across the threshold, and the replacement does not break HTML tags
+8. Differential text on revisit
+9. Hour monotonicity (five routes plus randomized playback)
+10. Save normalization: dirty types, out-of-range values, illegal scene ids, unknown relic ids; the starting point does not overwrite existing progress
+11. All five relics obtainable within a single run, without duplicates
+12. Author's-rights erosion: from permeation 2 onward narrative options are reworded but **keep their target and effect**, words the player speaks out loud are not taken over, full permeation rewords the prose, and HTML tags survive
+13. The ledger (the margin of the marriage contract): the ledger page is always honest, always has an exit, leaves a line per transgression, and a real revisit compares line counts (if unchanged it says so plainly)
+14. Node usurpation thresholds: **declared proxy always enters the ledger when chosen** (even with zero warnings and zero permeation), **silent takeover requires both warnings plus sufficient permeation**, and once it happens it enters the ledger and shakes the anchors
+15. Layered interface erosion: the top bar changes its wording while its behavior is untouched, anchors fail only at extreme permeation or after being written for and are restored on a new run, relic-row wording changes with permeation while the relics themselves do not
+16. The irreversible cost of transgression: answering outside and lifting the curtain each change later text but **do not change which endings are reachable**
+17. 500 randomized playthroughs: no dead ends, no non-convergence, all three endings reachable even randomly, printing the **ending distribution** as an observable (if the compliance ending became the overwhelming default, this shows it directly)
+18. DOM contract and accessibility: every id referenced by a script must actually exist in `index.html` (the stub would conjure elements out of nothing, and this class of bug stays green under logic tests forever); zoom/meta/og/favicon/focus ring/reduced motion may not be removed; locked items must genuinely carry `aria-disabled` at the render layer with no click handler attached
 
-### 变异测试
+### Mutation testing
 
 ```bash
 node tests/mutation-check.js
 ```
 
-全绿不代表测试有效。该脚本先把 v3 引擎的关键行为逐个改坏，再断言回归测试必须变红、且红在该管的那一节：
+All green does not mean the tests are effective. This script first breaks each key behavior of the v3 engine one at a time, then asserts that the regression suite must go red, and that it goes red on the section that owns it:
 
-| 组 | 变异体 |
+| Group | Mutants |
 | --- | --- |
-| 结构性死路 | 唯一导航选项被标成一次性、火盆缺退开兜底、定名去掉沉默兜底 |
-| 门控与进度 | 照面门槛降档、定名不再要求证据、**定名不再要求礼数**、证据不再封顶、一次性选项不再隐藏、选项不再发放证据 |
-| 称呼与氛围 | 替换阈值归零、自称不再最优先、渗透不再驱动画面类名、不再追加"替念一句" |
-| 作者权侵蚀 | 措辞改为随机驱动、选项不再被接管、**吞掉玩家说出口的话**、替换破坏 HTML 标签 |
-| 剥夺与回看 | 门槛降为 0 预警、不再看渗透档位、代笔不留证据、**账页自己也被侵蚀** |
-| 界面与违规 | 改字时清掉点击处理、锚点提前失守、失守成永久污染、违规不再有后果（应门外／掀轿帘各一条） |
-| 时间与确定性 | 单调推进改成直接赋值、重访差量失效 |
-| 结局与存档 | 终局分派失效、不再写入结局录、非法场景不回起点、类型校验退回 `||`、未知遗物不剔除、起点不再拒绝覆盖、不再发放遗物 |
-| 审查后补锁 | 隐藏状态增量记账失效、定名退路被删、追加句重新引入裸"她"、中庭回碑前的边被删 |
+| Structural dead ends | The only navigation option marked one-time, the brazier missing its step-back fallback, naming losing the silent fallback |
+| Gates and progress | Meeting threshold lowered, naming no longer requiring evidence, **naming no longer requiring propriety**, evidence no longer capped, one-time options no longer hiding, options no longer granting evidence |
+| Form of address and atmosphere | Replacement threshold zeroed, self-reference no longer highest priority, permeation no longer driving screen classes, no longer appending the "spoken for you" line |
+| Author's-rights erosion | Wording switched to random, options no longer taken over, **swallowing words the player spoke**, replacement breaking HTML tags |
+| Usurpation and the ledger | Threshold lowered to zero warnings, no longer reading the permeation level, proxy leaving no evidence, **the ledger itself eroded** |
+| Interface and transgression | Wording change clearing click handlers, anchors failing early, failure becoming permanent contamination, transgression no longer having consequences (one each for answering outside and lifting the curtain) |
+| Time and determinism | Monotonic advance changed to direct assignment, differential revisit text lost |
+| Endings and saves | Terminal dispatch failing, no longer written to the ending record, illegal scene not returning to start, type checking reverted to `||`, unknown relics not removed, the start no longer refusing to overwrite, relics no longer granted |
+| Post-review locks | Hidden-state delta accounting failing, the naming fallback removed, appended sentences reintroducing a bare "she", the edge before the courtyard stele removed |
 
-当前 **39/39 精准捕获**（0 漏网 / 0 不精准 / 0 无法应用）。脚本会临时改写 `js/core.js`、`js/chapter-v3.js`、`js/items.js`，运行前应确保工作区没有未保存的重要改动，且不要与其他编辑或测试进程并行；结束时从快照还原并用哈希复核。
+Currently **39/39 precisely caught** (0 missed, 0 imprecise, 0 inapplicable). The script temporarily rewrites `js/core.js`, `js/chapter-v3.js`, and `js/items.js`; make sure the working tree has no unsaved important changes before running and do not run it in parallel with other edits or test processes. It restores from a snapshot at the end and verifies with a hash.
 
-变异测试揪出过五类"看着绿其实空"的情形，都值得记住：
+Mutation testing has exposed five kinds of "looks green but is actually empty" situations, all worth remembering:
 
-- **等价变异**：删掉 `addEvidence` 的写侧上限后测试仍全绿，因为读侧 `evidenceScore` 又夹了一次。补了一条只查原始存储字段的断言才锁住。
-- **锚点被自己的改动作废**：修完文案后，两个变异体的 `from` 已不存在，报"无法应用"。这不是通过，必须逐条更新锚点重跑。
-- **判据本身写错**：静态检查"结局门前是否留了退路"最初只看直接出边，于是 `naming → loss-question → 结局` 这条链被当成有退路（`loss-question` 是场景不是结局）。改成按传递闭包求不动点之后，删掉定名退路的变异体才如期在第 1 节报红。
-- **改的是空气**：主菜单的标题只有 class 没有 id，`applyMenuErosion` 取不到节点，锚点失守在线上**永远静默失效**——而测试桩的 `getElementById` 会凭空造元素，所以逻辑测试全绿。靠第 18 节"脚本引用的每个 id 必须真实存在于 `index.html`"锁住。
-- **一道门掩盖另一道门**：定名同时要求"证据>=1"与"礼数>=2"，而零证据时礼数也必然是 0，于是"去掉证据要求"的变异体照样全绿。补一条"礼数行满但证据为零仍不开门"才把两道门分别锁死。
+- **Equivalent mutants**: after removing the write-side cap on `addEvidence` the suite stayed green, because the read-side `evidenceScore` clamped once more. Adding an assertion that inspects only the raw stored field closed it.
+- **Anchors invalidated by their own edits**: after a wording fix, two mutants' `from` no longer existed and reported "inapplicable". That is not a pass — each anchor must be updated and the run repeated.
+- **The criterion itself was wrong**: the static check "is a fallback left before an ending" originally looked only at direct out-edges, so the chain `naming → loss-question → ending` was treated as having a fallback (`loss-question` is a scene, not an ending). After switching to a fixed point over the transitive closure, the mutant that removes the naming fallback correctly went red in section 1.
+- **Changing thin air**: the main menu title has a class but no id, so `applyMenuErosion` cannot reach the node and anchor failure **silently never happens** in production — while the test stub's `getElementById` conjures elements from nothing, so logic tests stay green. Section 18, "every id a script references must really exist in `index.html`", locks this down.
+- **One gate masking another**: naming required both "evidence >= 1" and "propriety >= 2", but with zero evidence propriety is necessarily 0, so the mutant that removes the evidence requirement still stayed fully green. Adding "propriety full but evidence zero still does not open the gate" locked the two gates separately.
 
-## 存档与数据
+## Saves and data
 
-游戏用浏览器 `localStorage` 保存：
+The game saves to browser `localStorage`:
 
-- `hongzhiyuan_save_v3` 当前进度（起于 `arrival` 时不写，避免覆盖已有进度）
-- `hongzhiyuan_endings_v3` 已见证的结局
-- `hongzhiyuan_memory_v3` 是否已被这个故事记住
+- `hongzhiyuan_save_v3` current progress (not written when starting from `arrival`, so existing progress is not overwritten)
+- `hongzhiyuan_endings_v3` endings witnessed
+- `hongzhiyuan_memory_v3` whether this story remembers you
 
-读档时做完整类型归一：字段存在但类型错误（脏档、手改档）一律重建，未知遗物 id 剔除，非法场景回起点。清除浏览器站点数据会同时清空这些内容。
+Loading does full type normalization: a field that exists with the wrong type (a dirty save, a hand-edited save) is rebuilt, unknown relic ids are removed, and an illegal scene returns to the start. Clearing site data in the browser clears all of this too.
 
-## 技术特点
+## Technical notes
 
-- 原生 HTML、CSS 和 JavaScript，无第三方运行时依赖，无构建工具
-- 经典 `<script>` 共享一个全局词法作用域，跨文件函数在运行时解析
-- Web Audio API 生成交互音效与氛围音，仪式渗透临界时只用心跳而非震屏
-- 零依赖测试：Node 内置 `vm` + 手写 DOM / localStorage 桩直接驱动场景逻辑
-- 剧本数据与引擎运行时分离
-- 无障碍：自定义 `:focus-visible` 焦点环、顶栏与遗物 44px 触摸目标、允许缩放、`prefers-reduced-motion` 关掉闪烁与飘落（但保留仪式渗透的色调变化——它是进度的可见性，不是装饰）、打字机用 `aria-busy` 抑制读屏逐字重播
-- 分享：`meta description` + `og:` 三件套 + 内联 SVG favicon（仍零请求零依赖）
+- Plain HTML, CSS, and JavaScript, with no third-party runtime dependencies and no build tooling
+- Classic `<script>` tags share one global lexical scope, with cross-file functions resolved at runtime
+- Web Audio API generates interaction effects and atmosphere; at the permeation threshold it uses only a heartbeat rather than screen shake
+- Zero-dependency testing: Node's built-in `vm` plus hand-written DOM / localStorage stubs drives the scene logic directly
+- Script data is separated from the engine runtime
+- Accessibility: custom `:focus-visible` focus ring, 44px touch targets on the top bar and relics, zoom allowed, `prefers-reduced-motion` disables flicker and falling motes (but keeps the permeation color shift — it is progress visibility, not decoration), and the typewriter uses `aria-busy` to keep screen readers from replaying character by character
+- Sharing: `meta description` + the `og:` trio + an inline SVG favicon (still zero requests, zero dependencies)
 
-## 规模
+## Scale
 
-20 个场景、47 个选项、48 段差量文案、3 个结局、5 件遗物；正文含全部变体 2890 字，加结局与遗物原文共 3453 字。典型随机周目 64 次点击、渲染 3504 字，打字机约 3 分钟、纯阅读约 9 分钟。三条最短结局路线为 7 / 11 / 12 次点击（依次收束于代笔落笔、《归籍》、《失讳》），抵达时仪式渗透均为 2。
+20 scenes, 47 options, 48 differential text segments, 3 endings, 5 relics; the body text with every variant included runs 2,890 characters, and 3,453 including the endings and relic text. A typical randomized playthrough takes 64 clicks and renders 3,504 characters — roughly 3 minutes with the typewriter, about 9 minutes read straight through. The three shortest routes to an ending are 7 / 11 / 12 clicks (settling respectively at the proxy signature, "Return to Her Registry", and "Loss of Name"), all arriving at ritual permeation 2.
 
-## 许可
+## License
 
-本项目采用 [MIT License](LICENSE) 开源，署名见下。
+Released under the [MIT License](LICENSE), attributed below.
 
-## 署名
+## Credits
 
 试界 · TryWorld
