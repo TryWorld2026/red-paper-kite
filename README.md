@@ -8,6 +8,9 @@
 
 你要在天亮前找到她。而喜婆给你的三条规矩里，头一条就是——别提她的名字。
 
+![License](https://img.shields.io/badge/license-MIT-C0452F?style=flat-square)
+![零依赖](https://img.shields.io/badge/dependencies-none-2E5E8C?style=flat-square)
+
 ## 核心设计
 
 规则不是障碍，规则是她的尸体。玩家为了带走失踪的新娘而寻找规则，最后会发现：规则一直在替他完成这场婚礼。
@@ -169,6 +172,10 @@ node tests/mutation-check.js
 ## 规模
 
 20 个场景、47 个选项、48 段差量文案、3 个结局、5 件遗物；正文含全部变体 2890 字，加结局与遗物原文共 3453 字。典型随机周目 64 次点击、渲染 3504 字，打字机约 3 分钟、纯阅读约 9 分钟。三条最短结局路线为 7 / 11 / 12 次点击（依次收束于代笔落笔、《归籍》、《失讳》），抵达时仪式渗透均为 2。
+
+## 许可
+
+本项目采用 [MIT License](LICENSE) 开源，署名见下。
 
 ## 署名
 
